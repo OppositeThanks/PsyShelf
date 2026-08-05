@@ -408,12 +408,139 @@ document.addEventListener('keydown', event => {
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
     event.preventDefault(); $('#searchInput').focus();
   }
+  if (event.key === 'Escape' && $('#floatingChat').classList.contains('open')) closeFloatingChat();
 });
 
-$$('.tab').forEach(tab => tab.addEventListener('click', () => {
-  $$('.tab').forEach(item => item.classList.toggle('active', item === tab));
-  $$('.tab-panel').forEach(panel => panel.classList.toggle('active', panel.id === `${tab.dataset.tab}Panel`));
-}));
+const appShell = $('.app-shell');
+const detailsToggle = $('#detailsToggle');
+const agentBubble = $('#agentBubble');
+const floatingChat = $('#floatingChat');
+const BUBBLE_POSITION_KEY = 'psyshelf-agent-bubble-position';
+const CHAT_POSITION_KEY = 'psyshelf-agent-chat-position';
+
+function setDetailsCollapsed(collapsed) {
+  appShell.classList.toggle('details-collapsed', collapsed);
+  $('#collapseDetails').setAttribute('aria-expanded', String(!collapsed));
+  detailsToggle.setAttribute('aria-expanded', String(!collapsed));
+  localStorage.setItem('psyshelf-details-collapsed', String(collapsed));
+}
+
+function clamp(value, min, max) {
+  return Math.min(Math.max(value, min), Math.max(min, max));
+}
+
+function storedPosition(key) {
+  try {
+    const position = JSON.parse(localStorage.getItem(key));
+    return Number.isFinite(position?.left) && Number.isFinite(position?.top) ? position : null;
+  } catch {
+    return null;
+  }
+}
+
+function placeInsideViewport(element, position) {
+  const margin = 12;
+  const rect = element.getBoundingClientRect();
+  const left = clamp(position.left, margin, window.innerWidth - rect.width - margin);
+  const top = clamp(position.top, margin, window.innerHeight - rect.height - margin);
+  element.style.left = `${left}px`;
+  element.style.top = `${top}px`;
+  element.style.right = 'auto';
+  element.style.bottom = 'auto';
+  return { left, top };
+}
+
+function defaultBubblePosition() {
+  return { left: window.innerWidth - 78, top: window.innerHeight - 78 };
+}
+
+function positionChatNearBubble() {
+  const bubbleRect = agentBubble.getBoundingClientRect();
+  const chatRect = floatingChat.getBoundingClientRect();
+  const above = bubbleRect.top - chatRect.height - 12;
+  const position = {
+    left: bubbleRect.right - chatRect.width,
+    top: above >= 12 ? above : bubbleRect.bottom + 12
+  };
+  return placeInsideViewport(floatingChat, position);
+}
+
+function openFloatingChat() {
+  floatingChat.classList.add('open');
+  floatingChat.setAttribute('aria-hidden', 'false');
+  agentBubble.classList.add('open');
+  agentBubble.setAttribute('aria-expanded', 'true');
+  const saved = storedPosition(CHAT_POSITION_KEY);
+  requestAnimationFrame(() => {
+    placeInsideViewport(floatingChat, saved || positionChatNearBubble());
+    $('#chatInput').focus();
+  });
+}
+
+function closeFloatingChat() {
+  floatingChat.classList.remove('open');
+  floatingChat.setAttribute('aria-hidden', 'true');
+  agentBubble.classList.remove('open');
+  agentBubble.setAttribute('aria-expanded', 'false');
+}
+
+function toggleFloatingChat() {
+  if (floatingChat.classList.contains('open')) closeFloatingChat();
+  else openFloatingChat();
+}
+
+function makeDraggable(target, handle, storageKey, afterMove) {
+  let drag = null;
+  let suppressClick = false;
+  handle.addEventListener('pointerdown', event => {
+    const interactiveTarget = event.target.closest('button, input, textarea');
+    if (event.button !== 0 || (interactiveTarget && interactiveTarget !== handle)) return;
+    const rect = target.getBoundingClientRect();
+    drag = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, left: rect.left, top: rect.top, moved: false };
+    handle.setPointerCapture(event.pointerId);
+  });
+  handle.addEventListener('pointermove', event => {
+    if (!drag || event.pointerId !== drag.pointerId) return;
+    const dx = event.clientX - drag.x;
+    const dy = event.clientY - drag.y;
+    if (Math.abs(dx) + Math.abs(dy) > 4) drag.moved = true;
+    placeInsideViewport(target, { left: drag.left + dx, top: drag.top + dy });
+  });
+  const finish = event => {
+    if (!drag || event.pointerId !== drag.pointerId) return;
+    const position = placeInsideViewport(target, target.getBoundingClientRect());
+    localStorage.setItem(storageKey, JSON.stringify(position));
+    suppressClick = drag.moved;
+    drag = null;
+    afterMove?.();
+  };
+  handle.addEventListener('pointerup', finish);
+  handle.addEventListener('pointercancel', finish);
+  handle.addEventListener('click', event => {
+    if (!suppressClick) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    suppressClick = false;
+  }, true);
+}
+
+setDetailsCollapsed(localStorage.getItem('psyshelf-details-collapsed') === 'true');
+requestAnimationFrame(() => {
+  placeInsideViewport(agentBubble, storedPosition(BUBBLE_POSITION_KEY) || defaultBubblePosition());
+});
+
+$('#collapseDetails').addEventListener('click', () => setDetailsCollapsed(true));
+detailsToggle.addEventListener('click', () => setDetailsCollapsed(false));
+agentBubble.addEventListener('click', toggleFloatingChat);
+$('#closeChat').addEventListener('click', closeFloatingChat);
+makeDraggable(agentBubble, agentBubble, BUBBLE_POSITION_KEY, () => {
+  if (floatingChat.classList.contains('open') && !storedPosition(CHAT_POSITION_KEY)) positionChatNearBubble();
+});
+makeDraggable(floatingChat, $('#chatDragHandle'), CHAT_POSITION_KEY);
+window.addEventListener('resize', () => {
+  placeInsideViewport(agentBubble, agentBubble.getBoundingClientRect());
+  placeInsideViewport(floatingChat, floatingChat.getBoundingClientRect());
+});
 
 $('#chatForm').addEventListener('submit', async event => {
   event.preventDefault();
