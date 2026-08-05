@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light">
+  <title>PsyShelf</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">Ψ</div>
+        <div>
+          <h1>PsyShelf</h1>
+          <p>Your professional library</p>
+        </div>
+      </div>
+
+      <button class="nav-item active" id="allResourcesButton">
+        <span>Library</span><strong id="libraryCount">0</strong>
+      </button>
+
+      <section class="filter-section">
+        <div class="section-label">Categories</div>
+        <div id="categoryFilters" class="filter-list"></div>
+      </section>
+
+      <section class="filter-section">
+        <div class="section-label">Languages</div>
+        <div id="languageFilters" class="filter-list"></div>
+      </section>
+
+      <div class="sidebar-spacer"></div>
+      <div class="backup-card" id="backupCard">
+        <span class="status-dot"></span>
+        <div>
+          <strong>Local & private</strong>
+          <small id="backupLabel">Cloud backup not set</small>
+        </div>
+      </div>
+      <button class="nav-item secondary" id="settingsButton">
+        <span>Agent & backup settings</span><span>›</span>
+      </button>
+    </aside>
+
+    <main class="workspace">
+      <header class="topbar">
+        <label class="search-box">
+          <span aria-hidden="true">⌕</span>
+          <input id="searchInput" type="search" placeholder="Search title, author, topic, or language…" autocomplete="off">
+          <kbd>Ctrl K</kbd>
+        </label>
+        <button class="button ghost" id="addUrlButton">Add link</button>
+        <button class="button primary" id="addFileButton">＋ Add files</button>
+      </header>
+
+      <section class="library-view">
+        <div class="library-heading">
+          <div>
+            <p class="eyebrow" id="activeFilterLabel">All resources</p>
+            <h2>Your knowledge, in one place</h2>
+          </div>
+          <div class="view-tools">
+            <span id="resultCount">0 resources</span>
+            <select id="sortSelect" aria-label="Sort resources">
+              <option value="recent">Recently updated</option>
+              <option value="title">Title A–Z</option>
+              <option value="author">Author A–Z</option>
+            </select>
+          </div>
+        </div>
+
+        <div id="resourceGrid" class="resource-grid" aria-live="polite"></div>
+        <div id="emptyState" class="empty-state" hidden>
+          <div class="empty-symbol">⌁</div>
+          <h3>No matching resources</h3>
+          <p>Try a different search or add a file or link.</p>
+        </div>
+      </section>
+    </main>
+
+    <aside class="inspector">
+      <div class="tabbar" role="tablist">
+        <button class="tab active" data-tab="details" role="tab">Details</button>
+        <button class="tab" data-tab="chat" role="tab">Ask library</button>
+      </div>
+      <div id="detailsPanel" class="tab-panel active"></div>
+      <div id="chatPanel" class="tab-panel chat-panel">
+        <div class="agent-heading">
+          <span class="agent-orb">AI</span>
+          <div><strong>Library agent</strong><small id="agentModeLabel">Checking local model…</small></div>
+        </div>
+        <div id="chatMessages" class="chat-messages">
+          <div class="message agent">Ask about themes, authors, languages, or which resource might fit a topic.</div>
+        </div>
+        <form id="chatForm" class="chat-form">
+          <textarea id="chatInput" rows="2" placeholder="What do I have about grief?"></textarea>
+          <button class="send-button" type="submit" aria-label="Send">↑</button>
+        </form>
+      </div>
+    </aside>
+  </div>
+
+  <dialog id="storageDialog">
+    <form method="dialog" class="dialog-card">
+      <button class="dialog-close" value="cancel" aria-label="Close">×</button>
+      <span class="dialog-icon">＋</span>
+      <h2>How should PsyShelf store these files?</h2>
+      <p>You can decide each time you import. Both options keep the entry in your database.</p>
+      <button class="choice-card" value="reference">
+        <span class="choice-icon">↗</span>
+        <span><strong>Reference original files</strong><small>Uses no extra storage. Moving the originals may break the link.</small></span>
+      </button>
+      <button class="choice-card" value="copy">
+        <span class="choice-icon">▣</span>
+        <span><strong>Copy into PsyShelf</strong><small>Safer and included in cloud backups, but uses additional disk space.</small></span>
+      </button>
+    </form>
+  </dialog>
+
+  <dialog id="urlDialog">
+    <form id="urlForm" class="dialog-card wide">
+      <button class="dialog-close" type="button" data-close="urlDialog" aria-label="Close">×</button>
+      <p class="eyebrow">New web resource</p>
+      <h2>Add a link</h2>
+      <div class="field-grid">
+        <label class="field full"><span>URL</span><input name="url" type="url" placeholder="https://…" required></label>
+        <label class="field"><span>Title</span><input name="title" placeholder="Resource title" required></label>
+        <label class="field"><span>Author</span><input name="authors" placeholder="One or more, separated by commas"></label>
+        <label class="field"><span>Categories</span><input name="categories" value="URL" placeholder="URL, Article"></label>
+        <label class="field"><span>Languages</span><input name="languages" placeholder="English, French…"></label>
+        <label class="field full"><span>Short description</span><textarea name="description" rows="4" placeholder="Why this resource is useful"></textarea></label>
+      </div>
+      <div class="dialog-actions"><button class="button ghost" type="button" data-close="urlDialog">Cancel</button><button class="button primary" type="submit">Add resource</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="correctionDialog">
+    <form id="correctionForm" class="dialog-card wide">
+      <button class="dialog-close" type="button" data-close="correctionDialog" aria-label="Close">×</button>
+      <p class="eyebrow">Correction review</p>
+      <h2>Request a metadata change</h2>
+      <p>The local correction agent will check your proposal. You always keep the final override.</p>
+      <input name="resourceId" type="hidden">
+      <div class="field-grid">
+        <label class="field full"><span>Title</span><input name="title" required></label>
+        <label class="field"><span>Authors</span><input name="authors"></label>
+        <label class="field"><span>Categories</span><input name="categories"></label>
+        <label class="field"><span>Languages</span><input name="languages"></label>
+        <label class="field full"><span>Description</span><textarea name="description" rows="4"></textarea></label>
+        <label class="field full"><span>Why should this change?</span><textarea name="reason" rows="2" placeholder="Optional evidence or context"></textarea></label>
+      </div>
+      <div id="correctionResult" class="review-result" hidden></div>
+      <div class="dialog-actions"><button class="button ghost" type="button" data-close="correctionDialog">Cancel</button><button class="button primary" type="submit">Ask agent to review</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="settingsDialog">
+    <div class="dialog-card settings-card">
+      <button class="dialog-close" type="button" data-close="settingsDialog" aria-label="Close">×</button>
+      <p class="eyebrow">Configuration</p>
+      <h2>Agent & backup</h2>
+      <section class="settings-section">
+        <div class="settings-title"><span class="agent-orb">AI</span><div><strong>Free local intelligence</strong><small id="settingsAgentStatus">Checking Ollama…</small></div></div>
+        <p>PsyShelf uses Ollama only on your computer. Qwen3 supports more than 100 languages and is a strong free starting point.</p>
+        <label class="field"><span>Model</span><input id="modelInput" value="qwen3:4b"></label>
+        <div class="command-row"><code>ollama pull qwen3:4b</code><button class="button compact" id="copyModelCommand">Copy</button></div>
+        <div class="button-row"><button class="button ghost" id="openOllama" type="button">Get Ollama for Windows</button><button class="button primary" id="saveModel" type="button">Save model</button></div>
+      </section>
+      <section class="settings-section">
+        <div class="settings-title"><span class="settings-glyph">☁</span><div><strong>Google Drive / cloud backup</strong><small id="settingsBackupPath">Not configured</small></div></div>
+        <p>Choose a folder already synchronized by Google Drive for Desktop, OneDrive, or another provider. PsyShelf will place an updated database copy and managed files there.</p>
+        <div class="button-row"><button class="button ghost" id="chooseBackup" type="button">Choose folder</button><button class="button primary" id="syncNow" type="button">Back up now</button></div>
+      </section>
+      <section class="settings-section compact-section">
+        <strong>Reminder for a later version</strong>
+        <p>Optional fields: publication year, clinical topic, theoretical approach, audience, rating, and personal notes.</p>
+      </section>
+    </div>
+  </dialog>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="app.js"></script>
+</body>
+</html>
