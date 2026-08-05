@@ -1,0 +1,9 @@
+node_modules/
+.pnpm-store/
+.tools/
+dist/
+release/
+artifacts/
+*.log
+.DS_Store
+Thumbs.db

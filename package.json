@@ -1,0 +1,36 @@
+{
+  "name": "psyshelf",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A private, local-first professional psychology resource library.",
+  "author": "oppositethanks",
+  "main": "electron/main.cjs",
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test",
+    "dist:win": "electron-builder --win portable --publish never"
+  },
+  "devDependencies": {
+    "electron": "43.2.0",
+    "electron-builder": "26.15.3"
+  },
+  "build": {
+    "appId": "com.personal.psyshelf",
+    "productName": "PsyShelf",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "electron/**/*",
+      "renderer/**/*",
+      "src/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        "portable"
+      ],
+      "artifactName": "PsyShelf-${version}-Windows.${ext}"
+    }
+  }
+}
