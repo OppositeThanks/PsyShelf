@@ -10,6 +10,7 @@ const javascriptFiles = [
   'renderer/app.js',
   'scripts/electron-smoke.cjs',
   'src/agent-contracts.cjs',
+  'src/hardware-advisor.cjs',
   'src/library-utils.cjs'
 ];
 

@@ -14,6 +14,7 @@ The first launch includes the usable entries imported from the original `RECURSO
 - Preview common PDFs, images, audio, video, and text formats inside the app.
 - Open every other format through Windows and recommend an appropriate free viewer from its official website.
 - Analyze metadata with a free local Ollama model.
+- Analyze the computer privately on first launch, recommend a suitable Qwen3 size, and re-run the check from settings at any time.
 - Submit metadata corrections to the local review agent and apply the owner's final override when needed.
 - Ask conversational questions about the library; exact catalog search remains available while the local model is offline.
 - Export shareable metadata packages, optionally including a file after the owner confirms permission to share it.
@@ -24,7 +25,7 @@ The first launch includes the usable entries imported from the original `RECURSO
 The packaged portable build is produced at:
 
 ```text
-dist/PsyShelf-0.2.1-Windows.exe
+dist/PsyShelf-0.3.0-Windows.exe
 ```
 
 It can be launched directly and does not require a separate Node.js installation.
@@ -50,11 +51,11 @@ pnpm run dist:win
 
 ## Free local AI setup
 
-1. Install [Ollama for Windows](https://ollama.com/download/windows).
-2. Open PowerShell and run `ollama pull qwen3:4b`.
-3. Open PsyShelf → **Agent & backup settings** and keep `qwen3:4b` as the selected model.
+1. On first launch, review PsyShelf's private hardware recommendation and choose whether to use it.
+2. Install [Ollama for Windows](https://ollama.com/download/windows).
+3. Open PsyShelf → **Agent & backup settings**, copy the displayed `ollama pull ...` command, and run it in PowerShell.
 
-Qwen3 is a practical multilingual starting point: the 4B package is approximately 2.5 GB and the model family supports more than 100 languages. Larger Qwen3 variants can be selected later if the computer has enough memory and the 4B model is not accurate enough. See the [official Ollama Qwen3 library page](https://ollama.com/library/qwen3).
+The adviser measures RAM and usable CPU capacity, reports the processor and active graphics adapter, then makes a conservative selection from official Qwen3 packages ranging from 0.6B to 30B. The graphics adapter is shown for transparency but does not trigger an unsafe upgrade because graphics-memory reporting varies by Windows driver. The result stays in local settings, is never uploaded, does not automatically download a model, and can be refreshed or overridden later. See the [official Ollama Qwen3 library page](https://ollama.com/library/qwen3).
 
 PsyShelf sends catalog context only to the Ollama service running on `127.0.0.1`. It does not require a paid AI API.
 

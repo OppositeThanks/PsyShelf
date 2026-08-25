@@ -8,7 +8,8 @@ const state = {
   query: '',
   sort: 'recent',
   agent: null,
-  settings: null
+  settings: null,
+  hardwareAnalysisInFlight: false
 };
 
 const RESOURCE_THEMES = [
@@ -283,7 +284,55 @@ async function loadResources(selectId = null) {
   render();
 }
 
-/** Refreshes local model and backup settings in the interface. */
+/** Updates the displayed Ollama command from the editable model field. */
+function updateModelCommand() {
+  $('#modelCommand').textContent = `ollama pull ${$('#modelInput').value.trim() || 'qwen3:4b'}`;
+}
+
+/** Formats a stored hardware-analysis timestamp for the current locale. */
+function formatAnalysisDate(value) {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? 'Analyzed locally' : `Analyzed locally ${date.toLocaleString()}`;
+}
+
+/** Builds safe hardware fact cards for both recommendation surfaces. */
+function hardwareSpecsMarkup(profile = {}) {
+  const specs = [
+    ['Memory', `${profile.totalMemoryGb || 'Unknown'} GB RAM`],
+    ['CPU capacity', `${profile.availableParallelism || profile.logicalCores || 1} usable threads`],
+    ['Processor', profile.cpuModel || 'Not reported'],
+    ['Graphics', profile.gpuName || 'Not reported']
+  ];
+  return specs.map(([label, value]) => `<div class="hardware-spec"><span>${escapeHtml(label)}</span><strong title="${escapeHtml(value)}">${escapeHtml(value)}</strong></div>`).join('');
+}
+
+/** Renders the latest recommendation in settings and the first-run dialog. */
+function renderHardwareRecommendation(recommendation) {
+  const settingsButton = $('#useSettingsRecommendation');
+  if (!recommendation) {
+    $('#recommendedModelName').textContent = 'Computer recommendation not checked';
+    $('#hardwareAnalysisDate').textContent = 'Runs once on first launch';
+    $('#recommendedModelReason').textContent = 'Analyze this computer to choose a balanced local model.';
+    $('#settingsHardwareSpecs').replaceChildren();
+    settingsButton.hidden = true;
+    return;
+  }
+  const packageText = `About ${recommendation.packageSizeGb} GB to download through Ollama`;
+  $('#recommendedModelName').textContent = `Recommended: ${recommendation.label}`;
+  $('#hardwareAnalysisDate').textContent = formatAnalysisDate(recommendation.analyzedAt);
+  $('#recommendedModelReason').textContent = recommendation.reason;
+  $('#settingsHardwareSpecs').innerHTML = hardwareSpecsMarkup(recommendation.profile);
+  $('#firstRunModelName').textContent = recommendation.label;
+  $('#firstRunModelSize').textContent = packageText;
+  $('#firstRunModelReason').textContent = recommendation.reason;
+  $('#firstRunHardwareSpecs').innerHTML = hardwareSpecsMarkup(recommendation.profile);
+  settingsButton.hidden = false;
+  settingsButton.disabled = state.settings?.model === recommendation.model;
+  settingsButton.textContent = settingsButton.disabled ? `${recommendation.label} selected` : `Use ${recommendation.label}`;
+  $('#useFirstRunRecommendation').textContent = `Use ${recommendation.label}`;
+}
+
+/** Refreshes local model, hardware recommendation, and backup settings. */
 async function refreshSettings() {
   try {
     state.settings = await api.getSettings();
@@ -292,11 +341,39 @@ async function refreshSettings() {
     $('#agentModeLabel').textContent = available ? `Local · ${state.agent.models[0] || state.settings.model}` : 'Catalog search · Local AI offline';
     $('#settingsAgentStatus').textContent = available ? `${state.agent.models.length} local model${state.agent.models.length === 1 ? '' : 's'} available` : 'Ollama is not running yet';
     $('#modelInput').value = state.settings.model || 'qwen3:4b';
+    updateModelCommand();
+    renderHardwareRecommendation(state.settings.hardwareRecommendation);
     $('#settingsBackupPath').textContent = state.settings.backupFolder || 'Not configured';
     $('#backupLabel').textContent = state.settings.backupFolder ? 'Automatic cloud-folder backup on' : 'Cloud backup not set';
   } catch (error) {
     $('#agentModeLabel').textContent = 'Status unavailable';
   }
+}
+
+/** Runs the private hardware adviser and optionally presents its first-run result. */
+async function runHardwareAnalysis(showDialog = false) {
+  if (state.hardwareAnalysisInFlight) return null;
+  state.hardwareAnalysisInFlight = true;
+  const button = $('#reanalyzeHardware');
+  button.disabled = true;
+  button.textContent = 'Analyzing…';
+  try {
+    const recommendation = await api.analyzeHardware();
+    state.settings = { ...(state.settings || {}), hardwareRecommendation: recommendation };
+    renderHardwareRecommendation(recommendation);
+    if (showDialog && !$('#hardwareDialog').open) $('#hardwareDialog').showModal();
+    return recommendation;
+  } finally {
+    state.hardwareAnalysisInFlight = false;
+    button.disabled = false;
+    button.textContent = 'Analyze this computer again';
+  }
+}
+
+/** Loads settings and performs the single automatic analysis when no result exists. */
+async function initializeSettings() {
+  await refreshSettings();
+  if (!state.settings?.hardwareRecommendation) await runHardwareAnalysis(true);
 }
 
 /** Opens the settings dialog after starting a status refresh. */
@@ -637,6 +714,27 @@ async function handleCopyModelCommand() {
   try { await navigator.clipboard.writeText(command); toast('Model command copied.'); } catch { toast(command); }
 }
 
+/** Applies the stored recommendation while keeping the model field editable. */
+async function handleUseRecommendation() {
+  const recommendation = state.settings?.hardwareRecommendation;
+  if (!recommendation) return;
+  try {
+    $('#modelInput').value = recommendation.model;
+    await api.updateSettings({ model: recommendation.model });
+    await refreshSettings();
+    if ($('#hardwareDialog').open) $('#hardwareDialog').close();
+    toast(`${recommendation.label} selected. Install it through Ollama when you are ready.`);
+  } catch (error) { showError(error); }
+}
+
+/** Manually refreshes the hardware recommendation from settings. */
+async function handleReanalyzeHardware() {
+  try {
+    const recommendation = await runHardwareAnalysis(false);
+    if (recommendation) toast(`Recommendation updated: ${recommendation.label}.`);
+  } catch (error) { showError(error); }
+}
+
 /** Saves the preferred local model name. */
 async function handleSaveModel() {
   try { await api.updateSettings({ model: $('#modelInput').value }); await refreshSettings(); toast('Local model preference saved.'); }
@@ -683,7 +781,11 @@ function initializeInterface() {
   $('#chatForm').addEventListener('submit', handleChatSubmit);
   $('#openOllama').addEventListener('click', handleOpenOllama);
   $('#copyModelCommand').addEventListener('click', handleCopyModelCommand);
+  $('#modelInput').addEventListener('input', updateModelCommand);
   $('#saveModel').addEventListener('click', handleSaveModel);
+  $('#reanalyzeHardware').addEventListener('click', handleReanalyzeHardware);
+  $('#useSettingsRecommendation').addEventListener('click', handleUseRecommendation);
+  $('#useFirstRunRecommendation').addEventListener('click', handleUseRecommendation);
   $('#chooseBackup').addEventListener('click', handleChooseBackup);
   $('#syncNow').addEventListener('click', handleSyncNow);
   document.addEventListener('click', handleDialogClose);
@@ -692,4 +794,4 @@ function initializeInterface() {
 }
 
 initializeInterface();
-Promise.all([loadResources(), refreshSettings()]).catch(showError);
+Promise.all([loadResources(), initializeSettings()]).catch(showError);

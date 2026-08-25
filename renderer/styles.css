@@ -173,6 +173,7 @@ dialog::backdrop { background: rgba(25,38,33,.45); backdrop-filter: blur(4px); }
 .dialog-card { width: 440px; max-width: calc(100vw - 40px); position: relative; padding: 28px; border-radius: 19px; background: var(--panel-strong); color: var(--ink); box-shadow: var(--shadow); }
 .dialog-card.wide { width: 650px; }
 .dialog-card.settings-card { width: 690px; max-height: calc(100vh - 60px); overflow: auto; }
+.dialog-card.hardware-dialog-card { width: 540px; }
 .dialog-close { position: absolute; right: 16px; top: 13px; width: 29px; height: 29px; border: 0; border-radius: 50%; background: #f2f3ef; cursor: pointer; color: #768078; }
 .dialog-icon { width: 39px; height: 39px; display: grid; place-items: center; border-radius: 12px; background: var(--green-2); color: var(--green); font-size: 20px; }
 .dialog-card h2 { margin: 12px 0 7px; font-family: Georgia, serif; font-size: 25px; font-weight: 550; }
@@ -197,6 +198,25 @@ dialog::backdrop { background: rgba(25,38,33,.45); backdrop-filter: blur(4px); }
 .settings-section > p { color: var(--muted); font-size: 11px; line-height: 1.55; }
 .settings-section .field { margin-top: 14px; }
 .settings-section .button-row { justify-content: flex-start; }
+.hardware-advisor-panel { margin-top: 14px; padding: 14px; border-radius: 12px; background: var(--green-3); border: 1px solid #d7e6dd; }
+.hardware-advisor-panel strong, .hardware-advisor-panel small { display: block; }
+.hardware-advisor-panel strong { font-size: 12px; color: var(--green); }
+.hardware-advisor-panel small { margin-top: 3px; color: var(--muted); font-size: 9px; }
+.hardware-advisor-panel > p, .hardware-reason, .privacy-note { color: var(--muted); font-size: 10px; line-height: 1.5; }
+.hardware-advisor-panel > p { margin: 9px 0; }
+.hardware-advisor-panel .button-row { margin-top: 12px; }
+.recommended-model { margin: 17px 0 12px; padding: 16px; border-radius: 13px; color: white; background: linear-gradient(135deg, #1f6c59, #275446); }
+.recommended-model span, .recommended-model small { display: block; font-size: 9px; opacity: .8; }
+.recommended-model span { text-transform: uppercase; letter-spacing: 1px; }
+.recommended-model strong { display: block; margin: 5px 0 3px; font-family: Georgia, serif; font-size: 23px; font-weight: 550; }
+.hardware-spec-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
+.hardware-spec { min-width: 0; padding: 9px 10px; border: 1px solid var(--line); border-radius: 9px; background: #fafbf8; }
+.hardware-spec span, .hardware-spec strong { display: block; overflow: hidden; text-overflow: ellipsis; }
+.hardware-spec span { color: var(--muted); font-size: 8px; text-transform: uppercase; letter-spacing: .6px; }
+.hardware-spec strong { margin-top: 3px; font-size: 10px; white-space: nowrap; }
+.hardware-spec-grid.compact { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.hardware-spec-grid.compact .hardware-spec:last-child { grid-column: span 3; }
+.privacy-note { margin: 13px 0 0 !important; }
 .command-row { margin-top: 9px; display: flex; justify-content: space-between; align-items: center; border: 1px solid var(--line); background: #f6f7f3; border-radius: 9px; padding: 6px 7px 6px 11px; }
 .command-row code { font: 11px Consolas, monospace; }
 .compact-section { background: #f7f6f0; }

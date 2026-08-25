@@ -11,6 +11,8 @@ async function run() {
   const artifactRoot = path.join(projectRoot, 'artifacts');
   const userData = path.join(artifactRoot, 'e2e-user-data');
   const screenshotPath = path.join(artifactRoot, 'psyshelf-home.png');
+  const hardwareScreenshotPath = path.join(artifactRoot, 'hardware-recommendation.png');
+  const settingsScreenshotPath = path.join(artifactRoot, 'hardware-settings.png');
   const packagedExecutable = process.env.PSYSHELF_EXECUTABLE;
   const executablePath = packagedExecutable || path.join(projectRoot, 'node_modules', 'electron', 'dist', 'electron.exe');
   fs.mkdirSync(artifactRoot, { recursive: true });
@@ -31,6 +33,13 @@ async function run() {
       if (message.type() === 'error') console.error('Renderer console:', message.text());
     });
     await page.waitForSelector('.resource-card');
+    await page.waitForSelector('#hardwareDialog[open]', { timeout: 15000 });
+    assert.match(await page.locator('#firstRunModelName').textContent(), /Qwen3/);
+    assert.match(await page.locator('#firstRunModelSize').textContent(), /Ollama/);
+    assert.equal(await page.locator('#firstRunHardwareSpecs .hardware-spec').count(), 4, 'First-run analysis displays four local hardware facts');
+    await page.screenshot({ path: hardwareScreenshotPath });
+    await page.locator('#useFirstRunRecommendation').click();
+    await page.waitForFunction(() => !document.querySelector('#hardwareDialog')?.open);
     assert.equal(await page.locator('.resource-card').count(), 17, 'Google Sheet seed count');
     assert.ok(await page.locator('#backupCard').isVisible(), 'Privacy and backup status stays visible');
     assert.ok(await page.locator('#settingsButton').isVisible(), 'Agent settings stays visible');
@@ -74,7 +83,12 @@ async function run() {
 
     await page.locator('#settingsButton').click();
     await page.waitForSelector('#settingsDialog[open]');
-    assert.equal(await page.locator('#modelInput').inputValue(), 'qwen3:4b');
+    assert.match(await page.locator('#modelInput').inputValue(), /^qwen3:(0\.6b|1\.7b|4b|8b|14b|30b)$/);
+    assert.match(await page.locator('#recommendedModelName').textContent(), /Recommended: Qwen3/);
+    await page.locator('#reanalyzeHardware').click();
+    await page.waitForFunction(() => !document.querySelector('#reanalyzeHardware')?.disabled);
+    assert.match(await page.locator('#hardwareAnalysisDate').textContent(), /Analyzed locally/);
+    await page.screenshot({ path: settingsScreenshotPath });
     await page.locator('[data-close="settingsDialog"]').click();
 
     await page.locator('#correctButton').click();
@@ -110,7 +124,7 @@ async function run() {
     await page.locator('.library-view').evaluate(element => { element.scrollTop = 0; });
     await page.locator('#detailsPanel').evaluate(element => { element.scrollTop = 0; });
     await page.screenshot({ path: screenshotPath });
-    console.log(JSON.stringify({ passed: true, seedResources: 17, resourcesAfterCreate: 18, correctionReview: true, floatingAgent: true, collapsibleDetails: true, pinnedSidebarFooter: true, screenshotPath }));
+    console.log(JSON.stringify({ passed: true, seedResources: 17, resourcesAfterCreate: 18, firstRunHardwareAdvice: true, manualHardwareReanalysis: true, correctionReview: true, floatingAgent: true, collapsibleDetails: true, pinnedSidebarFooter: true, screenshotPath, hardwareScreenshotPath, settingsScreenshotPath }));
   } finally {
     await electronApp.close();
   }

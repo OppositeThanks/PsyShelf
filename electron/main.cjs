@@ -1,6 +1,7 @@
 const { app, BrowserWindow, dialog, ipcMain, shell } = require('electron');
 const { DatabaseSync } = require('node:sqlite');
 const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 const crypto = require('node:crypto');
@@ -24,6 +25,7 @@ const {
   searchResources,
   validateHttpUrl
 } = require('../src/library-utils.cjs');
+const { bytesToGiB, recommendModel, selectGpuName } = require('../src/hardware-advisor.cjs');
 
 const OLLAMA_BASE = 'http://127.0.0.1:11434';
 const READABLE_TEXT_EXTENSIONS = new Set(['.txt', '.md', '.csv', '.json', '.html', '.htm', '.xml', '.rtf']);
@@ -63,7 +65,8 @@ function readSettings() {
   settingsPath = path.join(app.getPath('userData'), 'settings.json');
   const defaults = {
     model: 'qwen3:4b',
-    backupFolder: ''
+    backupFolder: '',
+    hardwareRecommendation: null
   };
   try {
     return { ...defaults, ...JSON.parse(fs.readFileSync(settingsPath, 'utf8')) };
@@ -521,6 +524,33 @@ async function handleGetSettings() {
   return { ...settings, databasePath, managedLibraryPath, agent: await getOllamaStatus() };
 }
 
+/** Collects local hardware facts without sending them outside the computer. */
+async function collectHardwareProfile() {
+  const processors = os.cpus();
+  let gpuInfo = {};
+  try {
+    gpuInfo = await app.getGPUInfo('basic');
+  } catch {
+    gpuInfo = {};
+  }
+  return {
+    platform: `${os.type()} ${os.release()}`,
+    architecture: os.arch(),
+    totalMemoryGb: bytesToGiB(os.totalmem()),
+    logicalCores: processors.length || 1,
+    availableParallelism: typeof os.availableParallelism === 'function' ? os.availableParallelism() : (processors.length || 1),
+    cpuModel: processors[0]?.model || 'Processor not reported',
+    gpuName: selectGpuName(gpuInfo)
+  };
+}
+
+/** Re-analyzes this computer and persists its current local-model recommendation. */
+async function handleAnalyzeHardware() {
+  settings.hardwareRecommendation = recommendModel(await collectHardwareProfile());
+  writeSettings();
+  return settings.hardwareRecommendation;
+}
+
 /** Updates the supported user-editable settings. */
 function handleUpdateSettings(_event, patch) {
   if (patch.model !== undefined) settings.model = String(patch.model).trim() || 'qwen3:4b';
@@ -564,6 +594,7 @@ function registerHandlers() {
     ['agent:chat', handleChat],
     ['settings:get', handleGetSettings],
     ['settings:update', handleUpdateSettings],
+    ['settings:analyze-hardware', handleAnalyzeHardware],
     ['settings:choose-backup', handleChooseBackup],
     ['settings:sync-backup', performBackup],
     ['system:open-official-url', handleOpenOfficialUrl]

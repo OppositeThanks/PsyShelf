@@ -177,6 +177,28 @@
     </form>
   </dialog>
 
+  <dialog id="hardwareDialog">
+    <div class="dialog-card hardware-dialog-card">
+      <button class="dialog-close" type="button" data-close="hardwareDialog" aria-label="Close">×</button>
+      <div class="dialog-icon">AI</div>
+      <p class="eyebrow">First-time computer check</p>
+      <h2>Your best local AI model</h2>
+      <p>PsyShelf analyzed this computer locally. No hardware information was uploaded, and the check will not run automatically again.</p>
+      <div class="recommended-model">
+        <span>Recommended</span>
+        <strong id="firstRunModelName">Checking this computer…</strong>
+        <small id="firstRunModelSize"></small>
+      </div>
+      <p id="firstRunModelReason" class="hardware-reason"></p>
+      <div id="firstRunHardwareSpecs" class="hardware-spec-grid"></div>
+      <p class="privacy-note">The model remains editable. PsyShelf selects it for you but does not download Ollama or model files automatically.</p>
+      <div class="dialog-actions">
+        <button class="button ghost" type="button" data-close="hardwareDialog">Keep current model</button>
+        <button class="button primary" id="useFirstRunRecommendation" type="button">Use recommendation</button>
+      </div>
+    </div>
+  </dialog>
+
   <dialog id="settingsDialog">
     <div class="dialog-card settings-card">
       <button class="dialog-close" type="button" data-close="settingsDialog" aria-label="Close">×</button>
@@ -185,8 +207,17 @@
       <section class="settings-section">
         <div class="settings-title"><span class="agent-orb">AI</span><div><strong>Free local intelligence</strong><small id="settingsAgentStatus">Checking Ollama…</small></div></div>
         <p>PsyShelf uses Ollama only on your computer. Qwen3 supports more than 100 languages and is a strong free starting point.</p>
+        <div class="hardware-advisor-panel">
+          <div><strong id="recommendedModelName">Computer recommendation not checked</strong><small id="hardwareAnalysisDate">Runs once on first launch</small></div>
+          <p id="recommendedModelReason">Analyze this computer to choose a balanced local model.</p>
+          <div id="settingsHardwareSpecs" class="hardware-spec-grid compact"></div>
+          <div class="button-row">
+            <button class="button ghost" id="reanalyzeHardware" type="button">Analyze this computer again</button>
+            <button class="button compact" id="useSettingsRecommendation" type="button" hidden>Use recommendation</button>
+          </div>
+        </div>
         <label class="field"><span>Model</span><input id="modelInput" value="qwen3:4b"></label>
-        <div class="command-row"><code>ollama pull qwen3:4b</code><button class="button compact" id="copyModelCommand">Copy</button></div>
+        <div class="command-row"><code id="modelCommand">ollama pull qwen3:4b</code><button class="button compact" id="copyModelCommand">Copy</button></div>
         <div class="button-row"><button class="button ghost" id="openOllama" type="button">Get Ollama for Windows</button><button class="button primary" id="saveModel" type="button">Save model</button></div>
       </section>
       <section class="settings-section">

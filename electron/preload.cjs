@@ -19,6 +19,7 @@ contextBridge.exposeInMainWorld('psyLibrary', {
   chat: invoke('agent:chat'),
   getSettings: invoke('settings:get'),
   updateSettings: invoke('settings:update'),
+  analyzeHardware: invoke('settings:analyze-hardware'),
   chooseBackupFolder: invoke('settings:choose-backup'),
   syncBackup: invoke('settings:sync-backup'),
   openOfficialUrl: invoke('system:open-official-url')
