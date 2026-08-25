@@ -6,7 +6,7 @@ const BUILT_IN = new Set([
   '.txt', '.md', '.csv', '.json', '.html', '.htm', '.xml'
 ]);
 
-const recommendations = {
+const RECOMMENDATIONS = {
   office: {
     name: 'LibreOffice',
     reason: 'Free viewer and editor for Word, PowerPoint, Excel, and OpenDocument files.',
@@ -33,43 +33,64 @@ const recommendations = {
     url: 'https://www.gimp.org/downloads/'
   }
 };
+
+const RESOURCE_TYPES = [
+  { type: 'Book / document', extensions: new Set(['.pdf', '.epub', '.mobi', '.azw', '.azw3', '.doc', '.docx', '.odt']) },
+  { type: 'Video', extensions: new Set(['.mp4', '.webm', '.mov', '.avi', '.mkv', '.wmv']) },
+  { type: 'Audio / music', extensions: new Set(['.mp3', '.wav', '.ogg', '.m4a', '.flac', '.aac', '.wma']) },
+  { type: 'Art / image', extensions: new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.psd', '.tif', '.tiff', '.bmp']) },
+  { type: 'Presentation', extensions: new Set(['.ppt', '.pptx', '.odp']) },
+  { type: 'Spreadsheet', extensions: new Set(['.xls', '.xlsx', '.ods', '.csv']) },
+  { type: 'Web resource', extensions: new Set(['.html', '.htm', '.url']) }
+];
+
+const PREVIEW_TYPES = [
+  { kind: 'image', extensions: new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg']) },
+  { kind: 'audio', extensions: new Set(['.mp3', '.wav', '.ogg', '.m4a']) },
+  { kind: 'video', extensions: new Set(['.mp4', '.webm', '.mov']) },
+  { kind: 'pdf', extensions: new Set(['.pdf']) },
+  { kind: 'text', extensions: new Set(['.txt', '.md', '.csv', '.json', '.html', '.htm', '.xml']) }
+];
+
+const HELPER_GROUPS = [
+  { recommendation: RECOMMENDATIONS.office, extensions: new Set(['.doc', '.docx', '.ppt', '.pptx', '.xls', '.xlsx', '.odt', '.odp', '.ods', '.rtf']) },
+  { recommendation: RECOMMENDATIONS.ebook, extensions: new Set(['.epub', '.mobi', '.azw', '.azw3', '.fb2']) },
+  { recommendation: RECOMMENDATIONS.media, extensions: new Set(['.avi', '.mkv', '.wmv', '.flac', '.aac', '.wma']) },
+  { recommendation: RECOMMENDATIONS.archive, extensions: new Set(['.zip', '.7z', '.rar', '.tar', '.gz']) },
+  { recommendation: RECOMMENDATIONS.image, extensions: new Set(['.psd', '.xcf', '.tif', '.tiff', '.raw']) }
+];
+
+/** Returns a normalized lowercase extension for a filename. */
+function extensionOf(filename = '') {
+  return path.extname(filename).toLowerCase();
+}
+
+/** Normalizes comma-delimited or array values into unique non-empty strings. */
 function normalizeList(value) {
   const items = Array.isArray(value) ? value : String(value || '').split(',');
   return [...new Set(items.map(item => String(item).trim()).filter(Boolean))];
 }
 
+/** Infers a broad library category without rejecting unknown formats. */
 function inferResourceType(filename = '') {
-  const ext = path.extname(filename).toLowerCase();
-  if (['.pdf', '.epub', '.mobi', '.azw', '.azw3', '.doc', '.docx', '.odt'].includes(ext)) return 'Book / document';
-  if (['.mp4', '.webm', '.mov', '.avi', '.mkv', '.wmv'].includes(ext)) return 'Video';
-  if (['.mp3', '.wav', '.ogg', '.m4a', '.flac', '.aac', '.wma'].includes(ext)) return 'Audio / music';
-  if (['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.psd', '.tiff', '.bmp'].includes(ext)) return 'Art / image';
-  if (['.ppt', '.pptx', '.odp'].includes(ext)) return 'Presentation';
-  if (['.xls', '.xlsx', '.ods', '.csv'].includes(ext)) return 'Spreadsheet';
-  if (['.html', '.htm', '.url'].includes(ext)) return 'Web resource';
-  return 'Other';
+  const extension = extensionOf(filename);
+  return RESOURCE_TYPES.find(group => group.extensions.has(extension))?.type || 'Other';
 }
 
+/** Selects the built-in preview renderer for a filename. */
 function previewKind(filename = '') {
-  const ext = path.extname(filename).toLowerCase();
-  if (['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg'].includes(ext)) return 'image';
-  if (['.mp3', '.wav', '.ogg', '.m4a'].includes(ext)) return 'audio';
-  if (['.mp4', '.webm', '.mov'].includes(ext)) return 'video';
-  if (ext === '.pdf') return 'pdf';
-  if (['.txt', '.md', '.csv', '.json', '.html', '.htm', '.xml'].includes(ext)) return 'text';
-  return 'external';
+  const extension = extensionOf(filename);
+  return PREVIEW_TYPES.find(group => group.extensions.has(extension))?.kind || 'external';
 }
 
+/** Recommends either PsyShelf preview or a verified free helper application. */
 function helperForExtension(filename = '') {
-  const ext = path.extname(filename).toLowerCase();
-  if (BUILT_IN.has(ext)) {
+  const extension = extensionOf(filename);
+  if (BUILT_IN.has(extension)) {
     return { builtIn: true, name: 'PsyShelf preview', reason: 'This format can be previewed inside PsyShelf.', url: null };
   }
-  if (['.doc', '.docx', '.ppt', '.pptx', '.xls', '.xlsx', '.odt', '.odp', '.ods', '.rtf'].includes(ext)) return { builtIn: false, ...recommendations.office };
-  if (['.epub', '.mobi', '.azw', '.azw3', '.fb2'].includes(ext)) return { builtIn: false, ...recommendations.ebook };
-  if (['.avi', '.mkv', '.wmv', '.flac', '.aac', '.wma'].includes(ext)) return { builtIn: false, ...recommendations.media };
-  if (['.zip', '.7z', '.rar', '.tar', '.gz'].includes(ext)) return { builtIn: false, ...recommendations.archive };
-  if (['.psd', '.xcf', '.tif', '.tiff', '.raw'].includes(ext)) return { builtIn: false, ...recommendations.image };
+  const helper = HELPER_GROUPS.find(group => group.extensions.has(extension));
+  if (helper) return { builtIn: false, ...helper.recommendation };
   return {
     builtIn: false,
     name: 'Windows default application',
@@ -78,6 +99,7 @@ function helperForExtension(filename = '') {
   };
 }
 
+/** Accepts only normalized HTTP or HTTPS URLs. */
 function validateHttpUrl(value) {
   try {
     const parsed = new URL(value);
@@ -87,6 +109,7 @@ function validateHttpUrl(value) {
   }
 }
 
+/** Converts a title into a Windows-safe filename component. */
 function safeFilename(value) {
   return String(value || 'resource')
     .replace(/[<>:"/\\|?*\u0000-\u001F]/g, '-')
@@ -94,6 +117,7 @@ function safeFilename(value) {
     .slice(0, 120) || 'resource';
 }
 
+/** Ranks catalog resources by how many query terms they match. */
 function searchResources(resources, query) {
   const terms = String(query || '').toLocaleLowerCase().split(/\s+/).filter(Boolean);
   if (!terms.length) return resources;

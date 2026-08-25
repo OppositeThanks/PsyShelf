@@ -10,6 +10,7 @@ SIZE = 1024
 
 
 def create_icon() -> Image.Image:
+    """Create the master transparent PsyShelf application icon."""
     image = Image.new("RGBA", (SIZE, SIZE), (0, 0, 0, 0))
     draw = ImageDraw.Draw(image)
     inset = 76
@@ -31,6 +32,7 @@ def create_icon() -> Image.Image:
 
 
 def main() -> None:
+    """Write PNG and multi-resolution Windows ICO icon assets."""
     BUILD.mkdir(parents=True, exist_ok=True)
     image = create_icon()
     image.save(BUILD / "icon.png", optimize=True)

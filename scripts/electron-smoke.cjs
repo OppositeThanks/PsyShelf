@@ -5,6 +5,7 @@ const path = require('node:path');
 const playwrightModule = process.env.PSYSHELF_PLAYWRIGHT_MODULE || 'playwright';
 const { _electron: electron } = require(playwrightModule);
 
+/** Exercises the packaged desktop workflow against an isolated test database. */
 async function run() {
   const projectRoot = path.resolve(__dirname, '..');
   const artifactRoot = path.join(projectRoot, 'artifacts');

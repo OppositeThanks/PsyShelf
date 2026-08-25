@@ -24,7 +24,7 @@ The first launch includes the usable entries imported from the original `RECURSO
 The packaged portable build is produced at:
 
 ```text
-dist/PsyShelf-0.2.0-Windows.exe
+dist/PsyShelf-0.2.1-Windows.exe
 ```
 
 It can be launched directly and does not require a separate Node.js installation.

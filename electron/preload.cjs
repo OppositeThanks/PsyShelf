@@ -1,22 +1,25 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
+/** Creates a sandbox-safe renderer function for one IPC channel. */
+function invoke(channel) {
+  return (...args) => ipcRenderer.invoke(channel, ...args);
+}
+
 contextBridge.exposeInMainWorld('psyLibrary', {
-  listResources: filters => ipcRenderer.invoke('resources:list', filters),
-  addFiles: options => ipcRenderer.invoke('resources:add-files', options),
-  addUrl: resource => ipcRenderer.invoke('resources:add-url', resource),
-  updateResource: (id, patch) => ipcRenderer.invoke('resources:update', id, patch),
-  deleteResource: id => ipcRenderer.invoke('resources:delete', id),
-  openResource: id => ipcRenderer.invoke('resources:open', id),
-  previewResource: id => ipcRenderer.invoke('resources:preview', id),
-  shareResource: (id, includeFile) => ipcRenderer.invoke('resources:share', id, includeFile),
-  analyzeResource: id => ipcRenderer.invoke('agent:analyze', id),
-  reviewCorrection: (id, request) => ipcRenderer.invoke('agent:review-correction', id, request),
-  overrideCorrection: correctionId => ipcRenderer.invoke('agent:override-correction', correctionId),
-  chat: message => ipcRenderer.invoke('agent:chat', message),
-  agentStatus: () => ipcRenderer.invoke('agent:status'),
-  getSettings: () => ipcRenderer.invoke('settings:get'),
-  updateSettings: patch => ipcRenderer.invoke('settings:update', patch),
-  chooseBackupFolder: () => ipcRenderer.invoke('settings:choose-backup'),
-  syncBackup: () => ipcRenderer.invoke('settings:sync-backup'),
-  openOfficialUrl: url => ipcRenderer.invoke('system:open-official-url', url)
+  listResources: invoke('resources:list'),
+  addFiles: invoke('resources:add-files'),
+  addUrl: invoke('resources:add-url'),
+  deleteResource: invoke('resources:delete'),
+  openResource: invoke('resources:open'),
+  previewResource: invoke('resources:preview'),
+  shareResource: invoke('resources:share'),
+  analyzeResource: invoke('agent:analyze'),
+  reviewCorrection: invoke('agent:review-correction'),
+  overrideCorrection: invoke('agent:override-correction'),
+  chat: invoke('agent:chat'),
+  getSettings: invoke('settings:get'),
+  updateSettings: invoke('settings:update'),
+  chooseBackupFolder: invoke('settings:choose-backup'),
+  syncBackup: invoke('settings:sync-backup'),
+  openOfficialUrl: invoke('system:open-official-url')
 });
