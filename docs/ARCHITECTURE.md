@@ -44,6 +44,25 @@ The application presents one Agent Hub with three bounded roles:
 
 When Ollama is offline, catalog search and all library features continue working. Metadata analysis pauses, and correction requests move to the explicit owner-override path.
 
+The agent contracts follow the current LangChain/LangGraph design guidance while keeping the runtime local and free:
+
+- each role has a bounded instruction and receives only the context it needs;
+- metadata and correction agents use explicit JSON schemas plus application-side validation;
+- deterministic catalog search remains the fallback when model execution fails;
+- owner correction and final override provide the human-in-the-loop checkpoint;
+- model transport, prompt construction, validation, persistence, and UI rendering stay separate.
+
+The direct Ollama transport is intentionally retained because these workflows are short, single-model operations with no tool loop. If a later workflow needs durable multi-step execution, tool calling, or resumable state, it should be implemented as a LangGraph workflow rather than expanding the main Electron process.
+
+## Code organization
+
+- `electron/main.cjs` owns desktop lifecycle, storage, and named IPC handlers.
+- `src/agent-contracts.cjs` owns bounded prompts, JSON schemas, and model-output validation.
+- `src/library-utils.cjs` owns reusable deterministic classification, preview, URL, filename, and search utilities.
+- `renderer/app.js` owns view state and uses persistent delegated event handlers instead of recreating listeners after every render.
+
+Every named function has a short description so future changes can be reviewed without reverse-engineering its purpose.
+
 ## Mobile direction
 
 The renderer is plain web technology and the data contract is already isolated behind IPC. A future mobile app can reuse the information architecture and replace Electron IPC with a mobile repository/synchronization layer. Recommended future work:

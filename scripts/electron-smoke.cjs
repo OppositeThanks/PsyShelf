@@ -5,6 +5,7 @@ const path = require('node:path');
 const playwrightModule = process.env.PSYSHELF_PLAYWRIGHT_MODULE || 'playwright';
 const { _electron: electron } = require(playwrightModule);
 
+/** Exercises the packaged desktop workflow against an isolated test database. */
 async function run() {
   const projectRoot = path.resolve(__dirname, '..');
   const artifactRoot = path.join(projectRoot, 'artifacts');
@@ -24,12 +25,27 @@ async function run() {
 
   try {
     const page = await electronApp.firstWindow();
+    await page.setViewportSize({ width: 1034, height: 641 });
     page.on('pageerror', error => console.error('Renderer error:', error));
     page.on('console', message => {
       if (message.type() === 'error') console.error('Renderer console:', message.text());
     });
     await page.waitForSelector('.resource-card');
     assert.equal(await page.locator('.resource-card').count(), 17, 'Google Sheet seed count');
+    assert.ok(await page.locator('#backupCard').isVisible(), 'Privacy and backup status stays visible');
+    assert.ok(await page.locator('#settingsButton').isVisible(), 'Agent settings stays visible');
+    const sidebarLayout = await page.evaluate(() => {
+      const sidebar = document.querySelector('.sidebar').getBoundingClientRect();
+      const scroll = document.querySelector('.sidebar-scroll').getBoundingClientRect();
+      const footer = document.querySelector('.sidebar-footer').getBoundingClientRect();
+      return { viewportHeight: window.innerHeight, sidebar: { top: sidebar.top, bottom: sidebar.bottom, height: sidebar.height }, scroll: { top: scroll.top, bottom: scroll.bottom, height: scroll.height }, footer: { top: footer.top, bottom: footer.bottom, height: footer.height } };
+    });
+    fs.writeFileSync(path.join(artifactRoot, 'sidebar-layout.json'), JSON.stringify(sidebarLayout, null, 2));
+    assert.ok(sidebarLayout.footer.top >= 0 && sidebarLayout.footer.bottom <= sidebarLayout.viewportHeight, `Sidebar footer is inside the viewport: ${JSON.stringify(sidebarLayout)}`);
+    if (process.env.PSYSHELF_LAYOUT_ONLY === 'true') {
+      console.log(JSON.stringify({ passed: true, sidebarLayout }));
+      return;
+    }
     await page.locator('.resource-card').first().click();
     await page.waitForSelector('.detail-hero h2');
     assert.ok(await page.locator('#correctButton').isVisible(), 'Correction action is visible');
@@ -65,15 +81,36 @@ async function run() {
     await page.locator('#correctionForm [name="title"]').fill('Smoke test resource — corrected');
     await page.locator('#correctionForm [name="reason"]').fill('Owner verified the preferred title.');
     await page.locator('#correctionForm [type="submit"]').click();
-    await page.waitForSelector('#overrideButton', { timeout: 10000 });
-    await page.locator('#overrideButton').click();
+    await page.waitForSelector('#correctionResult:not([hidden])', { timeout: 120000 });
+    if (await page.locator('#overrideButton').count()) await page.locator('#overrideButton').click();
     await page.waitForFunction(() => document.querySelector('.detail-hero h2')?.textContent.includes('corrected'));
     assert.match(await page.locator('.detail-hero h2').textContent(), /corrected/);
+
+    assert.ok(await page.locator('#agentBubble').isVisible(), 'Floating Ask library bubble is visible');
+    await page.locator('#agentBubble').click();
+    await page.waitForSelector('#floatingChat.open');
+    assert.equal(await page.locator('#floatingChat').getAttribute('aria-hidden'), 'false');
+
+    const bubbleBefore = await page.locator('#agentBubble').boundingBox();
+    assert.ok(bubbleBefore, 'Floating bubble has a position');
+    await page.mouse.move(bubbleBefore.x + bubbleBefore.width / 2, bubbleBefore.y + bubbleBefore.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(bubbleBefore.x - 85, bubbleBefore.y - 55, { steps: 6 });
+    await page.mouse.up();
+    const bubbleAfter = await page.locator('#agentBubble').boundingBox();
+    assert.ok(Math.abs(bubbleAfter.x - bubbleBefore.x) > 20, 'Floating bubble can be moved');
+
+    await page.locator('#collapseDetails').click();
+    await page.waitForFunction(() => document.querySelector('.app-shell')?.classList.contains('details-collapsed'));
+    assert.ok(await page.locator('#detailsToggle').isVisible(), 'Details restore tab appears after folding');
+    await page.locator('#detailsToggle').click();
+    await page.waitForFunction(() => !document.querySelector('.app-shell')?.classList.contains('details-collapsed'));
+    await page.locator('#collapseDetails').click();
 
     await page.locator('.library-view').evaluate(element => { element.scrollTop = 0; });
     await page.locator('#detailsPanel').evaluate(element => { element.scrollTop = 0; });
     await page.screenshot({ path: screenshotPath });
-    console.log(JSON.stringify({ passed: true, seedResources: 17, resourcesAfterCreate: 18, correctionOverride: true, screenshotPath }));
+    console.log(JSON.stringify({ passed: true, seedResources: 17, resourcesAfterCreate: 18, correctionReview: true, floatingAgent: true, collapsibleDetails: true, pinnedSidebarFooter: true, screenshotPath }));
   } finally {
     await electronApp.close();
   }

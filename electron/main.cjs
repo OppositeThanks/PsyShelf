@@ -7,6 +7,15 @@ const crypto = require('node:crypto');
 
 const seedData = require('../src/seed-data.cjs');
 const {
+  CORRECTION_SCHEMA,
+  METADATA_SCHEMA,
+  buildChatMessages,
+  buildCorrectionMessages,
+  buildMetadataMessages,
+  validateCorrectionResponse,
+  validateMetadataResponse
+} = require('../src/agent-contracts.cjs');
+const {
   helperForExtension,
   inferResourceType,
   normalizeList,
@@ -17,6 +26,7 @@ const {
 } = require('../src/library-utils.cjs');
 
 const OLLAMA_BASE = 'http://127.0.0.1:11434';
+const READABLE_TEXT_EXTENSIONS = new Set(['.txt', '.md', '.csv', '.json', '.html', '.htm', '.xml', '.rtf']);
 const OFFICIAL_HOSTS = new Set([
   'ollama.com', 'www.ollama.com', 'docs.ollama.com',
   'libreoffice.org', 'www.libreoffice.org',
@@ -38,20 +48,22 @@ if (process.env.PSYSHELF_TEST_DATA_DIR) {
   app.setPath('userData', path.resolve(process.env.PSYSHELF_TEST_DATA_DIR));
 }
 
+/** Returns the current timestamp in the database's ISO format. */
 function now() {
   return new Date().toISOString();
 }
 
+/** Creates a collision-resistant identifier for stored records. */
 function randomId() {
   return crypto.randomUUID();
 }
 
+/** Loads user settings while preserving safe defaults for missing fields. */
 function readSettings() {
   settingsPath = path.join(app.getPath('userData'), 'settings.json');
   const defaults = {
     model: 'qwen3:4b',
-    backupFolder: '',
-    language: 'English'
+    backupFolder: ''
   };
   try {
     return { ...defaults, ...JSON.parse(fs.readFileSync(settingsPath, 'utf8')) };
@@ -60,11 +72,13 @@ function readSettings() {
   }
 }
 
+/** Persists the current application settings to the user-data folder. */
 function writeSettings() {
   fs.mkdirSync(path.dirname(settingsPath), { recursive: true });
   fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2), 'utf8');
 }
 
+/** Opens the SQLite database, creates its schema, and seeds an empty library. */
 function initDatabase() {
   databasePath = path.join(app.getPath('userData'), 'psyshelf.sqlite');
   managedLibraryPath = path.join(app.getPath('userData'), 'library-files');
@@ -118,6 +132,7 @@ function initDatabase() {
   }
 }
 
+/** Converts a SQLite row into the renderer-facing resource shape. */
 function fromRow(row) {
   if (!row) return null;
   return {
@@ -138,10 +153,12 @@ function fromRow(row) {
   };
 }
 
+/** Retrieves one resource by identifier or returns null. */
 function getResource(id) {
   return fromRow(db.prepare('SELECT * FROM resources WHERE id = ?').get(id));
 }
 
+/** Lists resources with optional query, category, and language filters. */
 function listResources(filters = {}) {
   let resources = db.prepare('SELECT * FROM resources ORDER BY updated_at DESC, title COLLATE NOCASE').all().map(fromRow);
   if (filters.query) resources = searchResources(resources, filters.query);
@@ -150,6 +167,7 @@ function listResources(filters = {}) {
   return resources;
 }
 
+/** Inserts a normalized resource and schedules a cloud-folder backup. */
 function insertResource(item) {
   const timestamp = now();
   const id = randomId();
@@ -177,6 +195,7 @@ function insertResource(item) {
   return getResource(id);
 }
 
+/** Applies editable metadata fields to an existing resource. */
 function updateResource(id, patch) {
   const current = getResource(id);
   if (!current) throw new Error('Resource not found.');
@@ -200,6 +219,7 @@ function updateResource(id, patch) {
   return getResource(id);
 }
 
+/** Finds a non-conflicting destination inside the managed library folder. */
 function uniqueManagedPath(sourcePath) {
   const ext = path.extname(sourcePath);
   const base = safeFilename(path.basename(sourcePath, ext));
@@ -212,9 +232,9 @@ function uniqueManagedPath(sourcePath) {
   return candidate;
 }
 
+/** Reads a bounded text excerpt only from known text-based formats. */
 function readableText(filePath) {
-  const ext = path.extname(filePath).toLowerCase();
-  if (!['.txt', '.md', '.csv', '.json', '.html', '.htm', '.xml', '.rtf'].includes(ext)) return '';
+  if (!READABLE_TEXT_EXTENSIONS.has(path.extname(filePath).toLowerCase())) return '';
   try {
     return fs.readFileSync(filePath, 'utf8').slice(0, 24000);
   } catch {
@@ -222,6 +242,7 @@ function readableText(filePath) {
   }
 }
 
+/** Checks the local Ollama service and reports installed model readiness. */
 async function getOllamaStatus() {
   try {
     const response = await fetch(`${OLLAMA_BASE}/api/tags`, { signal: AbortSignal.timeout(2500) });
@@ -239,13 +260,14 @@ async function getOllamaStatus() {
   }
 }
 
-async function callOllama(messages, json = false) {
+/** Sends a bounded local-model request with an optional JSON response schema. */
+async function callOllama(messages, responseFormat = null) {
   const status = await getOllamaStatus();
   if (!status.available) throw new Error('Ollama is not running. Open Agent settings for the free local setup.');
   const model = status.models.includes(settings.model) ? settings.model : status.models[0];
   if (!model) throw new Error(`No local model is installed. Run: ollama pull ${settings.model}`);
-  const payload = { model, messages, stream: false, options: { temperature: 0.15 } };
-  if (json) payload.format = 'json';
+  const payload = { model, messages, stream: false, options: { temperature: responseFormat ? 0 : 0.15 } };
+  if (responseFormat) payload.format = responseFormat;
   const response = await fetch(`${OLLAMA_BASE}/api/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -257,11 +279,7 @@ async function callOllama(messages, json = false) {
   return data.message?.content || '';
 }
 
-function parseModelJson(text) {
-  const cleaned = String(text || '').replace(/<think>[\s\S]*?<\/think>/gi, '').replace(/^```json\s*|\s*```$/g, '').trim();
-  return JSON.parse(cleaned);
-}
-
+/** Debounces automatic backups after database mutations. */
 function scheduleBackup() {
   if (!settings?.backupFolder) return;
   clearTimeout(backupTimer);
@@ -270,6 +288,7 @@ function scheduleBackup() {
   }, 800);
 }
 
+/** Copies the database and managed files into the configured sync folder. */
 function performBackup() {
   if (!settings.backupFolder) throw new Error('Choose a Google Drive or cloud-synced folder first.');
   const targetRoot = path.join(settings.backupFolder, 'PsyShelf Backup');
@@ -282,6 +301,7 @@ function performBackup() {
   return { folder: targetRoot, updatedAt: now() };
 }
 
+/** Creates the sandboxed PsyShelf desktop window. */
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1460,
@@ -290,6 +310,7 @@ function createWindow() {
     minHeight: 680,
     backgroundColor: '#f5f2ea',
     title: 'PsyShelf',
+    icon: path.join(__dirname, '..', 'build', 'icon.png'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
@@ -301,257 +322,280 @@ function createWindow() {
   mainWindow.loadFile(path.join(__dirname, '..', 'renderer', 'index.html'));
 }
 
-function registerHandlers() {
-  ipcMain.handle('resources:list', (_event, filters) => listResources(filters));
+/** Retrieves one resource or raises a consistent not-found error. */
+function requireResource(id) {
+  const resource = getResource(id);
+  if (!resource) throw new Error('Resource not found.');
+  return resource;
+}
 
-  ipcMain.handle('resources:add-files', async (_event, options = {}) => {
-    const result = await dialog.showOpenDialog(mainWindow, {
-      title: 'Add resources to PsyShelf',
-      properties: ['openFile', 'multiSelections'],
-      filters: [{ name: 'All files', extensions: ['*'] }]
-    });
-    if (result.canceled) return [];
-    const storageMode = options.storageMode === 'copy' ? 'copy' : 'reference';
-    return result.filePaths.map(sourcePath => {
-      let filePath = sourcePath;
-      if (storageMode === 'copy') {
-        filePath = uniqueManagedPath(sourcePath);
-        fs.copyFileSync(sourcePath, filePath);
-      }
-      const ext = path.extname(filePath).toLowerCase();
-      return insertResource({
-        title: path.basename(filePath, ext),
-        authors: [],
-        categories: [inferResourceType(filePath)],
-        languages: [],
-        description: 'Awaiting metadata analysis or manual description.',
-        sourceKind: 'file',
-        filePath,
-        storageMode,
-        extension: ext,
-        status: 'draft'
-      });
-    });
+/** Creates a non-conflicting share-package directory. */
+function createShareFolder(root, title) {
+  const baseName = `${safeFilename(title)}-share`;
+  let target = path.join(root, baseName);
+  let counter = 2;
+  while (fs.existsSync(target)) target = path.join(root, `${baseName}-${counter++}`);
+  fs.mkdirSync(target, { recursive: true });
+  return target;
+}
+
+/** Imports selected files as references or managed copies. */
+async function handleAddFiles(_event, options = {}) {
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: 'Add resources to PsyShelf',
+    properties: ['openFile', 'multiSelections'],
+    filters: [{ name: 'All files', extensions: ['*'] }]
   });
-
-  ipcMain.handle('resources:add-url', (_event, resource) => {
-    const url = validateHttpUrl(resource.url);
-    if (!url) throw new Error('Enter a valid http or https URL.');
+  if (result.canceled) return [];
+  const storageMode = options.storageMode === 'copy' ? 'copy' : 'reference';
+  return result.filePaths.map(sourcePath => {
+    const filePath = storageMode === 'copy' ? uniqueManagedPath(sourcePath) : sourcePath;
+    if (storageMode === 'copy') fs.copyFileSync(sourcePath, filePath);
+    const extension = path.extname(filePath).toLowerCase();
     return insertResource({
-      ...resource,
-      url,
-      sourceKind: 'url',
-      categories: normalizeList(resource.categories).length ? resource.categories : ['URL'],
-      status: resource.status || 'ready'
+      title: path.basename(filePath, extension),
+      authors: [],
+      categories: [inferResourceType(filePath)],
+      languages: [],
+      description: 'Awaiting metadata analysis or manual description.',
+      sourceKind: 'file',
+      filePath,
+      storageMode,
+      extension,
+      status: 'draft'
     });
-  });
-
-  ipcMain.handle('resources:update', (_event, id, patch) => updateResource(id, patch));
-
-  ipcMain.handle('resources:delete', (_event, id) => {
-    const resource = getResource(id);
-    if (!resource) return { deleted: false };
-    db.prepare('DELETE FROM resources WHERE id = ?').run(id);
-    scheduleBackup();
-    return {
-      deleted: true,
-      preservedFile: Boolean(resource.filePath),
-      message: resource.filePath ? 'The library entry was removed. Its file was preserved.' : 'The library entry was removed.'
-    };
-  });
-
-  ipcMain.handle('resources:open', async (_event, id) => {
-    const resource = getResource(id);
-    if (!resource) throw new Error('Resource not found.');
-    if (resource.url) {
-      const url = validateHttpUrl(resource.url);
-      if (!url) throw new Error('This link is not valid.');
-      await shell.openExternal(url);
-      return { opened: true };
-    }
-    if (!resource.filePath || !fs.existsSync(resource.filePath)) throw new Error('The referenced file could not be found.');
-    const error = await shell.openPath(resource.filePath);
-    if (error) throw new Error(error);
-    return { opened: true };
-  });
-
-  ipcMain.handle('resources:preview', (_event, id) => {
-    const resource = getResource(id);
-    if (!resource) throw new Error('Resource not found.');
-    if (resource.url) return { kind: 'url', url: resource.url, helper: { builtIn: false, name: 'Web browser', reason: 'Open this resource in your default browser.' } };
-    if (!resource.filePath || !fs.existsSync(resource.filePath)) return { kind: 'missing', helper: helperForExtension(resource.filePath || resource.extension || '') };
-    const kind = previewKind(resource.filePath);
-    const response = {
-      kind,
-      fileUrl: pathToFileURL(resource.filePath).toString(),
-      helper: helperForExtension(resource.filePath),
-      filename: path.basename(resource.filePath)
-    };
-    if (kind === 'text') response.content = readableText(resource.filePath);
-    return response;
-  });
-
-  ipcMain.handle('resources:share', async (_event, id, includeFile) => {
-    const resource = getResource(id);
-    if (!resource) throw new Error('Resource not found.');
-    const selection = await dialog.showOpenDialog(mainWindow, {
-      title: 'Choose a folder for the shared entry',
-      properties: ['openDirectory', 'createDirectory']
-    });
-    if (selection.canceled) return { canceled: true };
-    const root = selection.filePaths[0];
-    let target = path.join(root, `${safeFilename(resource.title)}-share`);
-    let counter = 2;
-    while (fs.existsSync(target)) {
-      target = path.join(root, `${safeFilename(resource.title)}-share-${counter++}`);
-    }
-    fs.mkdirSync(target, { recursive: true });
-    const shared = { ...resource, filePath: undefined, sharedAt: now() };
-    fs.writeFileSync(path.join(target, 'resource.json'), JSON.stringify(shared, null, 2), 'utf8');
-    let fileIncluded = false;
-    if (includeFile && resource.filePath && fs.existsSync(resource.filePath)) {
-      fs.copyFileSync(resource.filePath, path.join(target, path.basename(resource.filePath)));
-      fileIncluded = true;
-    }
-    return { canceled: false, folder: target, fileIncluded };
-  });
-
-  ipcMain.handle('agent:status', () => getOllamaStatus());
-
-  ipcMain.handle('agent:analyze', async (_event, id) => {
-    const resource = getResource(id);
-    if (!resource) throw new Error('Resource not found.');
-    const excerpt = resource.filePath ? readableText(resource.filePath) : '';
-    const prompt = `Analyze this professional psychology-library resource. Return JSON only with keys title (string), authors (array), categories (array), languages (array), description (2 concise sentences). Categories may include Book, URL, Music, Podcast, Art, Series, Movie, Scientific article, Video, Course, Presentation, Spreadsheet, or a more fitting new category. Do not invent details: keep uncertain fields empty and mention uncertainty in the description.\n\nExisting entry:\n${JSON.stringify(resource)}\n\nReadable excerpt:\n${excerpt}`;
-    const content = await callOllama([
-      { role: 'system', content: 'You are a careful multilingual metadata librarian for a psychologist. Prefer accuracy over completeness.' },
-      { role: 'user', content: prompt }
-    ], true);
-    const analyzed = parseModelJson(content);
-    return updateResource(id, {
-      title: analyzed.title || resource.title,
-      authors: analyzed.authors || resource.authors,
-      categories: analyzed.categories || resource.categories,
-      languages: analyzed.languages || resource.languages,
-      description: analyzed.description || resource.description,
-      status: 'ready'
-    });
-  });
-
-  ipcMain.handle('agent:review-correction', async (_event, id, request) => {
-    const resource = getResource(id);
-    if (!resource) throw new Error('Resource not found.');
-    const requestedChanges = {
-      title: String(request.title || '').trim() || resource.title,
-      authors: normalizeList(request.authors),
-      categories: normalizeList(request.categories),
-      languages: normalizeList(request.languages),
-      description: String(request.description || '').trim()
-    };
-    let decision = 'needs-override';
-    let explanation = 'The local model is not available, so PsyShelf cannot independently review this correction. You may start Ollama or use your final override.';
-    try {
-      const content = await callOllama([
-        { role: 'system', content: 'You are a cautious multilingual correction reviewer for a professional psychology library. Never fabricate evidence.' },
-        { role: 'user', content: `Review the requested metadata correction. Return JSON only: {"decision":"accept" or "reject","explanation":"brief reason"}. Accept reasonable user corrections unless the current information is demonstrably more accurate. If evidence is insufficient, accept the correction and say it is user-supplied.\nCurrent: ${JSON.stringify(resource)}\nRequested: ${JSON.stringify(requestedChanges)}\nUser reason: ${request.reason || 'Not provided'}` }
-      ], true);
-      const review = parseModelJson(content);
-      decision = review.decision === 'accept' ? 'accepted' : 'rejected';
-      explanation = String(review.explanation || 'The local agent completed its review.');
-    } catch (error) {
-      explanation = error.message.includes('Ollama') || error.message.includes('model') ? explanation : `The local review could not finish: ${error.message}`;
-    }
-    const correctionId = randomId();
-    db.prepare(`
-      INSERT INTO corrections (id, resource_id, requested_changes, reason, decision, explanation, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).run(correctionId, id, JSON.stringify(requestedChanges), String(request.reason || ''), decision, explanation, now());
-    let updatedResource = resource;
-    if (decision === 'accepted') updatedResource = updateResource(id, { ...requestedChanges, status: 'ready' });
-    return { correctionId, decision, explanation, resource: updatedResource };
-  });
-
-  ipcMain.handle('agent:override-correction', (_event, correctionId) => {
-    const correction = db.prepare('SELECT * FROM corrections WHERE id = ?').get(correctionId);
-    if (!correction) throw new Error('Correction request not found.');
-    const requested = JSON.parse(correction.requested_changes);
-    const resource = updateResource(correction.resource_id, { ...requested, status: 'ready' });
-    db.prepare("UPDATE corrections SET decision = 'overridden', explanation = ? WHERE id = ?")
-      .run('Applied using the owner’s final override.', correctionId);
-    return resource;
-  });
-
-  ipcMain.handle('agent:chat', async (_event, message) => {
-    const resources = listResources();
-    const matches = searchResources(resources, message).slice(0, 8);
-    try {
-      const content = await callOllama([
-        {
-          role: 'system',
-          content: 'You answer questions about a personal professional psychology library. Use only the supplied catalog. If the catalog does not contain the answer, say so. Reply in the language used by the user and cite resource titles in quotation marks.'
-        },
-        { role: 'user', content: `Question: ${message}\n\nCatalog:\n${JSON.stringify(resources.map(({ title, authors, categories, languages, description }) => ({ title, authors, categories, languages, description })))}` }
-      ]);
-      return { mode: 'local-ai', answer: content, resourceIds: matches.map(item => item.id) };
-    } catch {
-      if (!matches.length) {
-        return { mode: 'catalog-search', answer: 'I could not find a matching entry in your library. The local AI is not connected, so I used exact catalog search.', resourceIds: [] };
-      }
-      const titles = matches.slice(0, 5).map(item => `“${item.title}”`).join(', ');
-      return { mode: 'catalog-search', answer: `The closest catalog matches are ${titles}. Connect the local model in Agent settings for a conversational answer.`, resourceIds: matches.map(item => item.id) };
-    }
-  });
-
-  ipcMain.handle('settings:get', async () => ({
-    ...settings,
-    databasePath,
-    managedLibraryPath,
-    agent: await getOllamaStatus()
-  }));
-
-  ipcMain.handle('settings:update', (_event, patch) => {
-    if (patch.model !== undefined) settings.model = String(patch.model).trim() || 'qwen3:4b';
-    if (patch.language !== undefined) settings.language = String(patch.language).trim() || 'English';
-    writeSettings();
-    return settings;
-  });
-
-  ipcMain.handle('settings:choose-backup', async () => {
-    const result = await dialog.showOpenDialog(mainWindow, {
-      title: 'Choose your Google Drive or cloud-synced folder',
-      properties: ['openDirectory', 'createDirectory']
-    });
-    if (result.canceled) return { canceled: true };
-    settings.backupFolder = result.filePaths[0];
-    writeSettings();
-    return { canceled: false, backupFolder: settings.backupFolder };
-  });
-
-  ipcMain.handle('settings:sync-backup', () => performBackup());
-
-  ipcMain.handle('system:open-official-url', async (_event, value) => {
-    const url = validateHttpUrl(value);
-    if (!url || !OFFICIAL_HOSTS.has(new URL(url).hostname)) throw new Error('Only verified official download pages can be opened here.');
-    await shell.openExternal(url);
-    return { opened: true };
   });
 }
 
-app.whenReady().then(() => {
+/** Returns the catalog list requested by the renderer. */
+function handleListResources(_event, filters) {
+  return listResources(filters);
+}
+
+/** Adds a validated web link to the catalog. */
+function handleAddUrl(_event, resource) {
+  const url = validateHttpUrl(resource.url);
+  if (!url) throw new Error('Enter a valid http or https URL.');
+  const categories = normalizeList(resource.categories);
+  return insertResource({
+    ...resource,
+    url,
+    sourceKind: 'url',
+    categories: categories.length ? categories : ['URL'],
+    status: resource.status || 'ready'
+  });
+}
+
+/** Removes a catalog entry while always preserving its original file. */
+function handleDeleteResource(_event, id) {
+  const resource = getResource(id);
+  if (!resource) return { deleted: false };
+  db.prepare('DELETE FROM resources WHERE id = ?').run(id);
+  scheduleBackup();
+  return {
+    deleted: true,
+    preservedFile: Boolean(resource.filePath),
+    message: resource.filePath ? 'The library entry was removed. Its file was preserved.' : 'The library entry was removed.'
+  };
+}
+
+/** Opens a resource in the user's default browser or Windows application. */
+async function handleOpenResource(_event, id) {
+  const resource = requireResource(id);
+  if (resource.url) {
+    const url = validateHttpUrl(resource.url);
+    if (!url) throw new Error('This link is not valid.');
+    await shell.openExternal(url);
+    return { opened: true };
+  }
+  if (!resource.filePath || !fs.existsSync(resource.filePath)) throw new Error('The referenced file could not be found.');
+  const error = await shell.openPath(resource.filePath);
+  if (error) throw new Error(error);
+  return { opened: true };
+}
+
+/** Returns safe preview metadata or a compatible helper recommendation. */
+function handlePreviewResource(_event, id) {
+  const resource = requireResource(id);
+  if (resource.url) return { kind: 'url', url: resource.url, helper: { builtIn: false, name: 'Web browser', reason: 'Open this resource in your default browser.' } };
+  if (!resource.filePath || !fs.existsSync(resource.filePath)) return { kind: 'missing', helper: helperForExtension(resource.filePath || resource.extension || '') };
+  const kind = previewKind(resource.filePath);
+  const response = {
+    kind,
+    fileUrl: pathToFileURL(resource.filePath).toString(),
+    helper: helperForExtension(resource.filePath),
+    filename: path.basename(resource.filePath)
+  };
+  if (kind === 'text') response.content = readableText(resource.filePath);
+  return response;
+}
+
+/** Exports shareable metadata and optionally a copyright-permitted file copy. */
+async function handleShareResource(_event, id, includeFile) {
+  const resource = requireResource(id);
+  const selection = await dialog.showOpenDialog(mainWindow, {
+    title: 'Choose a folder for the shared entry',
+    properties: ['openDirectory', 'createDirectory']
+  });
+  if (selection.canceled) return { canceled: true };
+  const target = createShareFolder(selection.filePaths[0], resource.title);
+  const shared = { ...resource, filePath: undefined, sharedAt: now() };
+  fs.writeFileSync(path.join(target, 'resource.json'), JSON.stringify(shared, null, 2), 'utf8');
+  const fileIncluded = Boolean(includeFile && resource.filePath && fs.existsSync(resource.filePath));
+  if (fileIncluded) fs.copyFileSync(resource.filePath, path.join(target, path.basename(resource.filePath)));
+  return { canceled: false, folder: target, fileIncluded };
+}
+
+/** Runs the bounded metadata agent and validates its structured response. */
+async function handleAnalyzeResource(_event, id) {
+  const resource = requireResource(id);
+  const excerpt = resource.filePath ? readableText(resource.filePath) : '';
+  const content = await callOllama(buildMetadataMessages(resource, excerpt), METADATA_SCHEMA);
+  const metadata = validateMetadataResponse(content, resource);
+  return updateResource(id, { ...metadata, status: 'ready' });
+}
+
+/** Normalizes the owner’s requested metadata changes. */
+function requestedCorrection(resource, request) {
+  return {
+    title: String(request.title || '').trim() || resource.title,
+    authors: normalizeList(request.authors),
+    categories: normalizeList(request.categories),
+    languages: normalizeList(request.languages),
+    description: String(request.description || '').trim()
+  };
+}
+
+/** Reviews a correction locally and records both decision and explanation. */
+async function handleReviewCorrection(_event, id, request) {
+  const resource = requireResource(id);
+  const requestedChanges = requestedCorrection(resource, request);
+  let decision = 'needs-override';
+  let explanation = 'The local model is not available, so PsyShelf cannot independently review this correction. You may start Ollama or use your final override.';
+  try {
+    const content = await callOllama(buildCorrectionMessages(resource, requestedChanges, request.reason), CORRECTION_SCHEMA);
+    const review = validateCorrectionResponse(content);
+    decision = review.decision === 'accept' ? 'accepted' : 'rejected';
+    explanation = review.explanation;
+  } catch (error) {
+    if (!/Ollama|model/i.test(error.message)) explanation = `The local review could not finish: ${error.message}`;
+  }
+  const correctionId = randomId();
+  db.prepare(`
+    INSERT INTO corrections (id, resource_id, requested_changes, reason, decision, explanation, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(correctionId, id, JSON.stringify(requestedChanges), String(request.reason || ''), decision, explanation, now());
+  const updatedResource = decision === 'accepted' ? updateResource(id, { ...requestedChanges, status: 'ready' }) : resource;
+  return { correctionId, decision, explanation, resource: updatedResource };
+}
+
+/** Applies the owner’s final correction override and records that decision. */
+function handleOverrideCorrection(_event, correctionId) {
+  const correction = db.prepare('SELECT * FROM corrections WHERE id = ?').get(correctionId);
+  if (!correction) throw new Error('Correction request not found.');
+  const requested = JSON.parse(correction.requested_changes);
+  const resource = updateResource(correction.resource_id, { ...requested, status: 'ready' });
+  db.prepare("UPDATE corrections SET decision = 'overridden', explanation = ? WHERE id = ?")
+    .run('Applied using the owner’s final override.', correctionId);
+  return resource;
+}
+
+/** Answers from the local model or falls back to deterministic catalog search. */
+async function handleChat(_event, message) {
+  const resources = listResources();
+  const matches = searchResources(resources, message).slice(0, 8);
+  try {
+    const answer = await callOllama(buildChatMessages(resources, message));
+    return { mode: 'local-ai', answer, resourceIds: matches.map(item => item.id) };
+  } catch {
+    if (!matches.length) {
+      return { mode: 'catalog-search', answer: 'I could not find a matching entry in your library. The local AI is not connected, so I used exact catalog search.', resourceIds: [] };
+    }
+    const titles = matches.slice(0, 5).map(item => `“${item.title}”`).join(', ');
+    return { mode: 'catalog-search', answer: `The closest catalog matches are ${titles}. Connect the local model in Agent settings for a conversational answer.`, resourceIds: matches.map(item => item.id) };
+  }
+}
+
+/** Returns settings together with local paths and current agent status. */
+async function handleGetSettings() {
+  return { ...settings, databasePath, managedLibraryPath, agent: await getOllamaStatus() };
+}
+
+/** Updates the supported user-editable settings. */
+function handleUpdateSettings(_event, patch) {
+  if (patch.model !== undefined) settings.model = String(patch.model).trim() || 'qwen3:4b';
+  writeSettings();
+  return settings;
+}
+
+/** Lets the owner choose a cloud-synchronized backup folder. */
+async function handleChooseBackup() {
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: 'Choose your Google Drive or cloud-synced folder',
+    properties: ['openDirectory', 'createDirectory']
+  });
+  if (result.canceled) return { canceled: true };
+  settings.backupFolder = result.filePaths[0];
+  writeSettings();
+  return { canceled: false, backupFolder: settings.backupFolder };
+}
+
+/** Opens only allowlisted official helper-download pages. */
+async function handleOpenOfficialUrl(_event, value) {
+  const url = validateHttpUrl(value);
+  if (!url || !OFFICIAL_HOSTS.has(new URL(url).hostname)) throw new Error('Only verified official download pages can be opened here.');
+  await shell.openExternal(url);
+  return { opened: true };
+}
+
+/** Registers the minimal IPC surface used by the renderer. */
+function registerHandlers() {
+  const handlers = [
+    ['resources:list', handleListResources],
+    ['resources:add-files', handleAddFiles],
+    ['resources:add-url', handleAddUrl],
+    ['resources:delete', handleDeleteResource],
+    ['resources:open', handleOpenResource],
+    ['resources:preview', handlePreviewResource],
+    ['resources:share', handleShareResource],
+    ['agent:analyze', handleAnalyzeResource],
+    ['agent:review-correction', handleReviewCorrection],
+    ['agent:override-correction', handleOverrideCorrection],
+    ['agent:chat', handleChat],
+    ['settings:get', handleGetSettings],
+    ['settings:update', handleUpdateSettings],
+    ['settings:choose-backup', handleChooseBackup],
+    ['settings:sync-backup', performBackup],
+    ['system:open-official-url', handleOpenOfficialUrl]
+  ];
+  for (const [channel, handler] of handlers) ipcMain.handle(channel, handler);
+}
+
+/** Recreates the main window when the desktop application is reactivated. */
+function handleActivate() {
+  if (BrowserWindow.getAllWindows().length === 0) createWindow();
+}
+
+/** Initializes application state after Electron becomes ready. */
+function handleReady() {
   settings = readSettings();
   initDatabase();
   registerHandlers();
   createWindow();
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
-  });
-});
+  app.on('activate', handleActivate);
+}
 
-app.on('window-all-closed', () => {
+/** Quits after all Windows desktop windows are closed. */
+function handleAllWindowsClosed() {
   if (process.platform !== 'darwin') app.quit();
-});
+}
 
-app.on('before-quit', () => {
+/** Releases timers and the SQLite connection before shutdown. */
+function handleBeforeQuit() {
   clearTimeout(backupTimer);
   if (db) db.close();
-});
+}
+
+app.whenReady().then(handleReady);
+app.on('window-all-closed', handleAllWindowsClosed);
+app.on('before-quit', handleBeforeQuit);

@@ -10,6 +10,7 @@ The first launch includes the usable entries imported from the original `RECURSO
 - Add web links with title, authors, categories, languages, and a short description.
 - Assign multiple authors, categories, and languages to one resource.
 - Search across the complete catalog and filter by category or language.
+- Ask the library from a draggable floating AI bubble and fold the resource-details drawer away when more workspace is needed.
 - Preview common PDFs, images, audio, video, and text formats inside the app.
 - Open every other format through Windows and recommend an appropriate free viewer from its official website.
 - Analyze metadata with a free local Ollama model.
@@ -23,7 +24,7 @@ The first launch includes the usable entries imported from the original `RECURSO
 The packaged portable build is produced at:
 
 ```text
-dist/PsyShelf-0.1.0-Windows.exe
+dist/PsyShelf-0.2.1-Windows.exe
 ```
 
 It can be launched directly and does not require a separate Node.js installation.
