@@ -41,27 +41,27 @@ jobs:
             throw "Tag ${{ github.ref_name }} does not match package version $version. Expected v$version."
           }
 
-      - name: Build portable Windows executable
+      - name: Build Windows installer
         run: pnpm run dist:win
 
       - name: Verify and checksum executable
         shell: pwsh
         run: |
           $version = node -p "require('./package.json').version"
-          $exe = "dist/PsyShelf-$version-Windows.exe"
+          $exe = "dist/PsyShelf-Setup-$version-Windows.exe"
           if (-not (Test-Path -LiteralPath $exe)) {
             throw "Expected build output was not created: $exe"
           }
           $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $exe).Hash.ToLowerInvariant()
-          "$hash  PsyShelf-$version-Windows.exe" | Set-Content -Encoding ascii "$exe.sha256"
+          "$hash  PsyShelf-Setup-$version-Windows.exe" | Set-Content -Encoding ascii "$exe.sha256"
 
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
         with:
           name: PsyShelf-${{ github.run_number }}-Windows
           path: |
-            dist/PsyShelf-*-Windows.exe
-            dist/PsyShelf-*-Windows.exe.sha256
+            dist/PsyShelf-Setup-*-Windows.exe
+            dist/PsyShelf-Setup-*-Windows.exe.sha256
           if-no-files-found: error
 
   publish-release:
@@ -84,8 +84,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create "${{ github.ref_name }}" `
-            "dist/PsyShelf-*-Windows.exe" `
-            "dist/PsyShelf-*-Windows.exe.sha256" `
+            "dist/PsyShelf-Setup-*-Windows.exe" `
+            "dist/PsyShelf-Setup-*-Windows.exe.sha256" `
             --verify-tag `
             --generate-notes `
             --title "PsyShelf ${{ github.ref_name }}"

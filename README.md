@@ -20,13 +20,13 @@ The first launch includes the usable entries imported from the original `RECURSO
 
 ## Install and run
 
-The packaged portable build is produced at:
+The packaged Windows installer is produced at:
 
 ```text
-dist/PsyShelf-0.1.0-Windows.exe
+dist/PsyShelf-Setup-0.1.0-Windows.exe
 ```
 
-It can be launched directly and does not require a separate Node.js installation.
+Open the installer, choose the installation folder, and finish setup. It creates a permanent **PsyShelf** shortcut on the desktop and in the Start menu, using the PsyShelf logo. The installed app can be opened and closed like any other Windows app and removed later from **Settings > Apps > Installed apps**. It does not require a separate Node.js installation.
 
 For development, install Node.js 24 or later and pnpm, then run:
 
@@ -41,7 +41,7 @@ Run the checks with:
 pnpm test
 ```
 
-Create a new Windows portable build with:
+Create a new Windows installer with:
 
 ```powershell
 pnpm run dist:win
@@ -49,7 +49,7 @@ pnpm run dist:win
 
 ### Download or publish the Windows build with GitHub Actions
 
-The **Build Windows executable** workflow can be started manually from the repository's **Actions** tab. When it finishes, download the workflow artifact and unzip it to get the executable.
+The **Build Windows executable** workflow can be started manually from the repository's **Actions** tab. When it finishes, download the workflow artifact, unzip it, and run `PsyShelf-Setup-0.1.0-Windows.exe`.
 
 For a permanent public download, create and push a tag matching the version in `package.json` (currently `v0.1.0`):
 
@@ -58,7 +58,7 @@ git tag v0.1.0
 git push origin v0.1.0
 ```
 
-The tag run creates a GitHub Release and attaches `PsyShelf-0.1.0-Windows.exe` plus its SHA-256 checksum. Before publishing another version, update the `version` field in `package.json` and use the matching `v<version>` tag.
+The tag run creates a GitHub Release and attaches `PsyShelf-Setup-0.1.0-Windows.exe` plus its SHA-256 checksum. Before publishing another version, update the `version` field in `package.json` and use the matching `v<version>` tag.
 
 ## Free local AI setup
 
