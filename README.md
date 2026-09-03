@@ -47,6 +47,19 @@ Create a new Windows portable build with:
 pnpm run dist:win
 ```
 
+### Download or publish the Windows build with GitHub Actions
+
+The **Build Windows executable** workflow can be started manually from the repository's **Actions** tab. When it finishes, download the workflow artifact and unzip it to get the executable.
+
+For a permanent public download, create and push a tag matching the version in `package.json` (currently `v0.1.0`):
+
+```powershell
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+The tag run creates a GitHub Release and attaches `PsyShelf-0.1.0-Windows.exe` plus its SHA-256 checksum. Before publishing another version, update the `version` field in `package.json` and use the matching `v<version>` tag.
+
 ## Free local AI setup
 
 1. Install [Ollama for Windows](https://ollama.com/download/windows).
