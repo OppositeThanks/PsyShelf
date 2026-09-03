@@ -8,7 +8,7 @@
   "scripts": {
     "start": "electron .",
     "test": "node --test",
-    "dist:win": "electron-builder --win portable --publish never"
+    "dist:win": "electron-builder --win nsis --publish never"
   },
   "devDependencies": {
     "electron": "43.2.0",
@@ -27,10 +27,20 @@
       "package.json"
     ],
     "win": {
+      "icon": "build/icon.ico",
       "target": [
-        "portable"
+        "nsis"
       ],
-      "artifactName": "PsyShelf-${version}-Windows.${ext}"
+      "artifactName": "PsyShelf-Setup-${version}-Windows.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": "always",
+      "createStartMenuShortcut": true,
+      "shortcutName": "PsyShelf",
+      "uninstallDisplayName": "PsyShelf"
     }
   }
 }
