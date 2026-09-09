@@ -20,13 +20,25 @@ The first launch includes the usable entries imported from the original `RECURSO
 
 ## Install and run
 
-The packaged Windows installer is produced at:
+[**Download PsyShelf for Windows (.exe)**](https://github.com/OppositeThanks/PsyShelf/releases/latest/download/PsyShelf-Setup-Windows.exe)
+
+This direct download becomes available after the first release using this workflow is published. You can also find installers on the [Releases page](https://github.com/OppositeThanks/PsyShelf/releases).
+
+1. Download **PsyShelf-Setup-Windows.exe** from the link above.
+2. Double-click it. Setup installs PsyShelf for your Windows user, creates desktop and Start menu shortcuts, and opens the app automatically.
+3. Once setup finishes, you can delete the downloaded `.exe`. Open PsyShelf using its shortcuts from then on.
+
+**No file extraction, source-code download, or separate Node.js installation is needed.** The installer contains the application and its runtime. Local AI features use the separate, optional Ollama setup below.
+
+Remove the installed application through **Settings > Apps > Installed apps**. Deleting the downloaded installer does not uninstall PsyShelf or delete your library.
+
+### Development
+
+The locally built Windows installer is produced at:
 
 ```text
 dist/PsyShelf-Setup-0.1.0-Windows.exe
 ```
-
-Open the installer, choose the installation folder, and finish setup. It creates a permanent **PsyShelf** shortcut on the desktop and in the Start menu, using the PsyShelf logo. The installed app can be opened and closed like any other Windows app and removed later from **Settings > Apps > Installed apps**. It does not require a separate Node.js installation.
 
 For development, install Node.js 24 or later and pnpm, then run:
 
@@ -49,7 +61,9 @@ pnpm run dist:win
 
 ### Download or publish the Windows build with GitHub Actions
 
-The **Build Windows executable** workflow can be started manually from the repository's **Actions** tab. When it finishes, download the workflow artifact, unzip it, and run `PsyShelf-Setup-0.1.0-Windows.exe`.
+End users should use the direct `.exe` download above. GitHub's **Source code (zip)** and **Code > Download ZIP** contain source files, not the installer.
+
+For developer testing, the **Build Windows executable** workflow can be started manually from the repository's **Actions** tab. Actions artifacts are ZIP archives and must be extracted; they are not the end-user download route. Manual and branch runs build installers but do not publish a release.
 
 For a permanent public download, create and push a tag matching the version in `package.json` (currently `v0.1.0`):
 
@@ -58,7 +72,7 @@ git tag v0.1.0
 git push origin v0.1.0
 ```
 
-The tag run creates a GitHub Release and attaches `PsyShelf-Setup-0.1.0-Windows.exe` plus its SHA-256 checksum. Before publishing another version, update the `version` field in `package.json` and use the matching `v<version>` tag.
+The tag run creates a GitHub Release and attaches `PsyShelf-Setup-0.1.0-Windows.exe` plus an identical `PsyShelf-Setup-Windows.exe` and SHA-256 checksums. The stable filename keeps the direct download link working across releases. Users only need one `.exe`; checksum files are optional. Before publishing another version, update the `version` field in `package.json` and use the matching `v<version>` tag.
 
 ## Free local AI setup
 
