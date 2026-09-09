@@ -125,3 +125,11 @@ scripts/    Automated Electron smoke test
 ```
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for data boundaries and the mobile-ready direction.
+
+## Update history
+
+### 2026-09-09
+
+- Simplified Windows setup to install for the current user, create shortcuts, and launch PsyShelf automatically. The installer can be deleted after setup.
+- Added a stable direct `.exe` download filename and release installation instructions. The download becomes available when a GitHub Release is published.
+- Established the repository workflow: every completed modification includes a README update, appropriate checks, and a commit pushed to GitHub.
