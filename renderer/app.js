@@ -339,6 +339,7 @@ async function refreshSettings() {
   await refreshBackupStatus();
   try {
     state.settings = await api.getSettings();
+    $('#uninstallApp').disabled = !state.settings.canUninstall;
     state.agent = state.settings.agent;
     const available = state.agent.available;
     $('#agentModeLabel').textContent = available ? `Local · ${state.agent.models[0] || state.settings.model}` : 'Catalog search · Local AI offline';
@@ -505,3 +506,11 @@ $('#backupHistory').addEventListener('click', event => {
 });
 
 Promise.all([loadResources(), refreshSettings()]).catch(error => toast(errorMessage(error), true));
+
+$('#uninstallApp').addEventListener('click', async () => {
+  const button = $('#uninstallApp');
+  button.disabled = true;
+  try { await api.uninstall(); }
+  catch (error) { toast(errorMessage(error), true); }
+  finally { button.disabled = !state.settings?.canUninstall; }
+});

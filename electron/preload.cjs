@@ -19,6 +19,14 @@ contextBridge.exposeInMainWorld('psyLibrary', {
   chooseBackupFolder: () => ipcRenderer.invoke('settings:choose-backup'),
   syncBackup: () => ipcRenderer.invoke('settings:sync-backup'),
   backupStatus: () => ipcRenderer.invoke('settings:backup-status'),
+  fileOperationStatus: () => ipcRenderer.invoke('files:status'),
+  uninstall: () => ipcRenderer.invoke('system:uninstall'),
+  cancelFileOperation: id => ipcRenderer.invoke('files:cancel', id),
+  onFileOperation: callback => {
+    const listener = (_event, status) => callback(status);
+    ipcRenderer.on('files:progress', listener);
+    return () => ipcRenderer.removeListener('files:progress', listener);
+  },
   restoreBackup: folder => ipcRenderer.invoke('settings:restore-backup', folder),
   openOfficialUrl: url => ipcRenderer.invoke('system:open-official-url', url)
 });

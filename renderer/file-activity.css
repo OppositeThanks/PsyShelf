@@ -1,0 +1,24 @@
+.file-activity {
+  position: static;
+  flex: none;
+  margin: 0 18px 12px;
+  width: auto;
+  max-height: 200px;
+  overflow: auto;
+  padding: 16px;
+  border: 1px solid #cbd9d2;
+  border-radius: 14px;
+  background: #fff;
+  color: #173e35;
+  box-shadow: 0 8px 28px #173e3526;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+}
+.file-activity[hidden], .file-activity [hidden] { display: none; }
+.file-activity p { margin: 8px 0; }
+.file-activity progress { display: block; width: 100%; height: 8px; margin: 10px 0; accent-color: #216c58; }
+.file-activity small { display: block; line-height: 1.5; }
+.file-activity .button-row { margin-top: 12px; }
+.file-activity[data-state="failed"] { border-color: #c7775b; }
+body:has(dialog[open]) .workspace > .file-activity { display: none; }
+dialog .file-activity { position: static; width: auto; max-width: 100%; margin-top: 16px; box-shadow: none; }

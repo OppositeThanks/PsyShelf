@@ -20,12 +20,14 @@ function regularFile(file) {
   if (!stat.isFile() || stat.isSymbolicLink()) throw new Error(`Expected a regular file: ${file}`);
 }
 
-function validateTree(folder) {
+function validateTree(folder, check = () => {}) {
+  check();
   const stat = fs.lstatSync(folder);
   if (!stat.isDirectory() || stat.isSymbolicLink()) throw new Error('Backup folders cannot be symbolic links.');
   for (const entry of fs.readdirSync(folder, { withFileTypes: true })) {
     const target = path.join(folder, entry.name);
-    if (entry.isDirectory()) validateTree(target);
+    check();
+    if (entry.isDirectory()) validateTree(target, check);
     else regularFile(target);
   }
 }
@@ -40,7 +42,8 @@ function discardStaging(userData, staging, snapshot = false) {
   fs.rmSync(staging, { recursive: true });
 }
 
-function inspectBackup(folder) {
+function inspectBackup(folder, check = () => {}) {
+  check();
   regularFile(path.join(folder, DATABASE));
   const database = new DatabaseSync(path.join(folder, DATABASE), { readOnly: true });
   try {
@@ -66,6 +69,7 @@ function inspectBackup(folder) {
     let managedCount = 0;
     let referenceCount = 0;
     for (const row of resources) {
+      check();
       for (const column of ['authors', 'categories', 'languages']) {
         const values = JSON.parse(row[column]);
         if (!Array.isArray(values) || values.some(value => typeof value !== 'string')) throw new Error('Invalid resource metadata.');
@@ -95,7 +99,7 @@ function inspectBackup(folder) {
         managedCount++;
       } else if (row.source_kind === 'file') referenceCount++;
     }
-    if (fs.existsSync(path.join(folder, FILES))) validateTree(path.join(folder, FILES));
+    if (fs.existsSync(path.join(folder, FILES))) validateTree(path.join(folder, FILES), check);
     let info = {};
     if (fs.existsSync(path.join(folder, 'backup-info.json'))) {
       regularFile(path.join(folder, 'backup-info.json'));
@@ -106,11 +110,13 @@ function inspectBackup(folder) {
   } finally { database.close(); }
 }
 
-function createSnapshot({ db, managedLibraryPath, root, version, kind = 'backup' }) {
+function createSnapshot({ db, managedLibraryPath, root, version, kind = 'backup', hooks = {} }) {
+  const check = hooks.check || (() => {});
+  check();
   fs.mkdirSync(root, { recursive: true });
   const source = fs.realpathSync(managedLibraryPath);
   if (inside(source, fs.realpathSync(root))) throw new Error('Choose a backup folder outside the managed library.');
-  validateTree(source);
+  validateTree(source, check);
   const id = `${new Date().toISOString().replaceAll(':', '-')}-${crypto.randomUUID().slice(0, 8)}`;
   const staging = path.join(root, `.pending-${id}`);
   const folder = path.join(root, id);
@@ -118,11 +124,16 @@ function createSnapshot({ db, managedLibraryPath, root, version, kind = 'backup'
   // VACUUM INTO creates a consistent standalone SQLite snapshot, including committed WAL data.
   // An incomplete operation never replaces an existing backup.
   try {
+    hooks.progress?.({ phase: 'Creating database snapshot', copiedBytes: undefined, totalBytes: undefined });
     db.prepare('VACUUM INTO ?').run(path.join(staging, DATABASE));
-    fs.cpSync(source, path.join(staging, FILES), { recursive: true, errorOnExist: true, force: false });
+    check();
+    (hooks.copyTree || fs.cpSync)(source, path.join(staging, FILES), { recursive: true, errorOnExist: true, force: false });
     const updatedAt = new Date().toISOString();
     fs.writeFileSync(path.join(staging, 'backup-info.json'), JSON.stringify({ formatVersion: 1, updatedAt, version, kind }, null, 2));
-    const summary = inspectBackup(staging);
+    hooks.progress?.({ phase: 'Checking backup', copiedBytes: undefined, totalBytes: undefined });
+    const summary = inspectBackup(staging, check);
+    check();
+    hooks.commit?.();
     fs.renameSync(staging, folder);
     return { folder, updatedAt, ...summary };
   } catch (error) {
@@ -146,20 +157,26 @@ function listBackups(root) {
   }).sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
 }
 
-function prepareRestore(folder, userData) {
-  inspectBackup(folder);
+function prepareRestore(folder, userData, hooks = {}) {
+  const check = hooks.check || (() => {});
+  inspectBackup(folder, check);
   fs.mkdirSync(userData, { recursive: true });
   const staging = fs.mkdtempSync(path.join(userData, '.restore-'));
   try {
-    fs.copyFileSync(path.join(folder, DATABASE), path.join(staging, DATABASE));
+    hooks.progress?.({ phase: 'Creating restore snapshot', copiedBytes: undefined, totalBytes: undefined });
+    const sourceDatabase = new DatabaseSync(path.join(folder, DATABASE), { readOnly: true });
+    try { sourceDatabase.prepare('VACUUM INTO ?').run(path.join(staging, DATABASE)); }
+    finally { sourceDatabase.close(); }
+    check();
     if (fs.existsSync(path.join(folder, FILES))) {
-      fs.cpSync(path.join(folder, FILES), path.join(staging, FILES), { recursive: true, errorOnExist: true, force: false });
+      (hooks.copyTree || fs.cpSync)(path.join(folder, FILES), path.join(staging, FILES), { recursive: true, errorOnExist: true, force: false });
     } else fs.mkdirSync(path.join(staging, FILES));
-    const summary = inspectBackup(staging); // Validate the actual copied bytes, not just the selected source.
+    const summary = inspectBackup(staging, check); // Validate the actual copied bytes, not just the selected source.
     const database = new DatabaseSync(path.join(staging, DATABASE));
     try {
       const update = database.prepare('UPDATE resources SET file_path = ? WHERE id = ?');
       for (const row of database.prepare("SELECT id, file_path FROM resources WHERE storage_mode = 'copy'").all()) {
+        check();
         const name = path.win32.basename(row.file_path.replaceAll('/', '\\'));
         update.run(path.join(userData, FILES, name), row.id);
       }
@@ -183,6 +200,14 @@ function recoverRestore(userData) {
     const previous = path.join(staging, `previous-${name}`);
     const live = path.join(userData, name);
     if (fs.existsSync(previous)) {
+      if (name === DATABASE) {
+        // A crash after opening the replacement in WAL mode may leave its sidecars.
+        // They must never be applied to the recovered original database.
+        for (const suffix of ['-wal', '-shm']) {
+          const sidecar = path.join(userData, DATABASE + suffix);
+          if (fs.existsSync(sidecar)) fs.unlinkSync(sidecar);
+        }
+      }
       if (fs.existsSync(live)) fs.renameSync(live, path.join(staging, `abandoned-${crypto.randomUUID()}-${name}`));
       fs.renameSync(previous, live);
     }
@@ -191,7 +216,7 @@ function recoverRestore(userData) {
   try { discardStaging(userData, staging); } catch (error) { console.warn('Restore staging cleanup failed:', error.message); }
 }
 
-function installRestore({ staging, userData, close, open }) {
+function installRestore({ staging, userData, close, open, cleanup = true }) {
   if (path.dirname(staging) !== path.resolve(userData) || !/^\.restore-[a-zA-Z0-9]+$/.test(path.basename(staging))) {
     throw new Error('Invalid restore staging folder.');
   }
@@ -212,7 +237,9 @@ function installRestore({ staging, userData, close, open }) {
     open();
     throw new Error(`Restore failed; the previous library was recovered. ${error.message}`);
   }
-  try { discardStaging(userData, staging); } catch (error) { console.warn('Restore staging cleanup failed:', error.message); }
+  if (cleanup) {
+    try { discardStaging(userData, staging); } catch (error) { console.warn('Restore staging cleanup failed:', error.message); }
+  }
 }
 
 module.exports = { createSnapshot, inspectBackup, listBackups, prepareRestore, installRestore, recoverRestore, discardStaging };

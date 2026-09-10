@@ -5,6 +5,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { DatabaseSync } = require('node:sqlite');
 const { createSnapshot, inspectBackup, listBackups, prepareRestore, installRestore, recoverRestore } = require('../src/backup.cjs');
+const { workerTask } = require('../src/file-jobs.cjs');
 
 function fixture(t) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'psyshelf-backup-test-'));
@@ -139,4 +140,70 @@ test('unsafe destinations and restore recovery paths are rejected', t => {
   assert.throws(() => createSnapshot({ db: f.db, managedLibraryPath: f.managedLibraryPath, root: path.join(f.managedLibraryPath, 'nested'), version: 'test' }), /outside/);
   fs.writeFileSync(path.join(f.userData, 'restore-pending.json'), JSON.stringify({ stagingName: '..' }));
   assert.throws(() => recoverRestore(f.userData), /Invalid/);
+});
+
+test('background backup keeps a consistent catalog while live metadata changes', async t => {
+  const f = fixture(t);
+  f.db.exec('PRAGMA journal_mode = WAL');
+  f.add();
+  let edited = false;
+  const result = await workerTask('snapshot', { databasePath: path.join(f.userData, 'psyshelf.sqlite'),
+    managedLibraryPath: f.managedLibraryPath, root: path.join(f.root, 'background'), version: 'test' }, {
+    progress: status => {
+      if (!edited && status.phase === 'Copying files') {
+        f.db.prepare('UPDATE resources SET title = ?').run('Edited while copying');
+        edited = true;
+      }
+    }
+  });
+  assert.ok(edited);
+  const saved = new DatabaseSync(path.join(result.folder, 'psyshelf.sqlite'), { readOnly: true });
+  try { assert.equal(saved.prepare('SELECT title FROM resources').get().title, 'A resource'); }
+  finally { saved.close(); }
+  assert.equal(f.db.prepare('SELECT title FROM resources').get().title, 'Edited while copying');
+});
+
+test('cancelled background backups preserve the previous snapshot', async t => {
+  const f = fixture(t);
+  f.db.exec('PRAGMA journal_mode = WAL');
+  f.add();
+  const previous = f.snapshot();
+  const fd = fs.openSync(path.join(f.managedLibraryPath, 'large.bin'), 'wx');
+  fs.ftruncateSync(fd, 128 * 1024 * 1024); fs.closeSync(fd);
+  const signal = new SharedArrayBuffer(4);
+  await assert.rejects(workerTask('snapshot', { databasePath: path.join(f.userData, 'psyshelf.sqlite'),
+    managedLibraryPath: f.managedLibraryPath, root: path.join(f.root, 'backups'), version: 'test' }, {
+    signal, progress: status => { if (status.phase === 'Copying files') Atomics.store(new Int32Array(signal), 0, 1); }
+  }), { name: 'AbortError' });
+  assert.equal(listBackups(path.join(f.root, 'backups')).length, 1);
+  assert.ok(fs.existsSync(path.join(previous.folder, 'psyshelf.sqlite')));
+  assert.equal(fs.readdirSync(path.join(f.root, 'backups')).filter(name => name.startsWith('.pending-')).length, 0);
+});
+
+test('restore preparation includes committed WAL changes from a selected database', t => {
+  const f = fixture(t);
+  f.db.exec('PRAGMA journal_mode = WAL');
+  f.add();
+  const { staging } = prepareRestore(f.userData, f.userData);
+  const saved = new DatabaseSync(path.join(staging, 'psyshelf.sqlite'), { readOnly: true });
+  try { assert.equal(saved.prepare('SELECT COUNT(*) n FROM resources').get().n, 1); }
+  finally { saved.close(); }
+});
+
+test('recovery discards replacement WAL sidecars before reopening the original library', t => {
+  const f = fixture(t);
+  const empty = f.snapshot();
+  f.add();
+  const { staging } = prepareRestore(empty.folder, f.userData);
+  f.close();
+  fs.writeFileSync(path.join(f.userData, 'restore-pending.json'), JSON.stringify({ stagingName: path.basename(staging) }));
+  for (const name of ['psyshelf.sqlite', 'library-files']) {
+    fs.renameSync(path.join(f.userData, name), path.join(staging, `previous-${name}`));
+    fs.renameSync(path.join(staging, name), path.join(f.userData, name));
+  }
+  for (const suffix of ['-wal', '-shm']) fs.writeFileSync(path.join(f.userData, 'psyshelf.sqlite' + suffix), 'Replacement sidecar');
+  recoverRestore(f.userData);
+  for (const suffix of ['-wal', '-shm']) assert.equal(fs.existsSync(path.join(f.userData, 'psyshelf.sqlite' + suffix)), false);
+  f.open();
+  assert.equal(f.db.prepare('SELECT COUNT(*) n FROM resources').get().n, 1);
 });

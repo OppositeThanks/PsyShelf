@@ -32,6 +32,10 @@ This direct download becomes available after the first release using this workfl
 
 Remove the installed application through **Settings > Apps > Installed apps**. Deleting the downloaded installer does not uninstall PsyShelf or delete your library.
 
+### Uninstall
+
+Open **Agent & backup settings → Uninstall PsyShelf…** in an installed Windows copy. Choose **Keep library** to retain local data for reinstallation, or **Delete local data** to permanently remove the catalog, notes, managed copies, settings, caches, and local safety backups. Referenced originals and backups outside the app-data folder remain untouched. Active copies are cancelled safely first. The standard **Windows Settings → Apps → Installed apps** uninstaller keeps library data by default.
+
 ### Development
 
 The locally built Windows installer is produced at:
@@ -104,6 +108,12 @@ Install Google Drive for Desktop or another sync client, then choose one of its 
 - managed file copies under `library-files/`
 - `backup-info.json`
 
+### Background file operations
+
+Imports, backups, shared-file exports, and restore preparation show a **Background activity** panel with the current phase, file count, byte progress, and **Cancel**. The panel also appears inside open dialogs. Browsing and searching remain available during file copying. Completion, cancellation, and failures appear in the panel; dismiss it when finished.
+
+Only one file operation runs at a time. Automatic backups are combined while work is running and run afterward if the library changed. Cancelling an import adds no entries and removes its temporary copies; cancelling a backup or export leaves previous completed copies intact. Cancellation is checked between file chunks and validation steps; a database snapshot or a stalled disk read must finish its current step first. The final import/restore commit cannot be cancelled. Closing the app cancels pending copies and waits for safe cleanup.
+
 ### Restore a backup
 
 Open **Agent & backup settings → Restore backup…**, then select a dated backup folder containing `psyshelf.sqlite`. Or expand **Backup history & safety copies** and click **Restore** next to a saved copy. Original single-folder PsyShelf backups are also accepted. Check the resource and file counts, then choose **Restore library** to replace the current catalog and managed files. Cancel leaves the library unchanged.
@@ -112,7 +122,7 @@ PsyShelf validates the database and checks that managed files exist before resto
 
 New backups are stored in separate dated folders under `PsyShelf Backup/`, with the database, managed files, and backup information together. The settings panel shows backup history, the last successful backup in the selected folder, and backup errors. Older snapshots are retained until you delete them manually; allow disk space for full copies of the library. Local safety copies do not protect against loss of the computer.
 
-Restore stages the selected data before replacing the library, rolls back if opening the restored database fails, and recovers an interrupted replacement on next launch. Empty restored libraries stay empty. File copying is still synchronous, so large operations may temporarily pause the interface; background processing remains planned. This feature is in source and needs a new release to reach installed copies.
+Restore stages the selected data before replacing the library, rolls back if opening the restored database fails, and recovers an interrupted replacement on next launch. Empty restored libraries stay empty. File copies and backup checks now run in a background worker. During restore preparation you can browse and search, but library edits are paused so the safety copy remains accurate. The final library replacement briefly pauses operations and cannot be cancelled. This feature is in source and needs a new release to reach installed copies.
 
 Referenced originals are not copied into backups. This MVP provides a safe one-way backup, not multi-device conflict resolution. A future phone app should use an authenticated synchronization service rather than writing to the same SQLite file from two devices.
 
@@ -139,6 +149,10 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for data boundaries and the mob
 ## Update history
 
 ### 2026-09-10
+
+- Added background file operations with progress, cancellation, safe import commits, and queued automatic backups.
+
+- Added an in-app uninstall action with keep-library and delete-local-data choices.
 
 - Added validated backup restoration, safety copies, dated backup history, and backup status in settings.
 

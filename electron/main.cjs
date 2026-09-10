@@ -7,6 +7,21 @@ const crypto = require('node:crypto');
 
 const seedData = require('../src/seed-data.cjs');
 const backups = require('../src/backup.cjs');
+const removal = require('./uninstall.cjs');
+const { FileJobs, workerTask } = require('../src/file-jobs.cjs');
+const asyncFs = require('node:fs/promises');
+let backupPending = false;
+let restoreLocked = false;
+let quitting = false;
+let waitingToQuit = false;
+const fileJobs = new FileJobs(status => {
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('files:progress', status);
+}, () => {
+  if (backupPending && !quitting) {
+    clearTimeout(backupTimer);
+    backupTimer = setTimeout(flushAutomaticBackup, 800);
+  }
+});
 let activeOperations = 0;
 let restoreDialogOpen = false;
 let lastBackupError = '';
@@ -83,7 +98,7 @@ function initDatabase(seedIfEmpty = true) {
   db = new DatabaseSync(databasePath);
   db.exec(`
     PRAGMA foreign_keys = ON;
-    PRAGMA journal_mode = DELETE;
+    PRAGMA journal_mode = WAL;
     CREATE TABLE IF NOT EXISTS resources (
       id TEXT PRIMARY KEY,
       title TEXT NOT NULL,
@@ -274,77 +289,93 @@ function parseModelJson(text) {
 }
 
 function scheduleBackup() {
-  if (!settings?.backupFolder) return;
+  if (!settings?.backupFolder || quitting) return;
+  backupPending = true;
   clearTimeout(backupTimer);
-  backupTimer = setTimeout(() => {
-    try { performBackup(); } catch (error) { lastBackupError = error.message; console.error('Automatic backup failed:', error); }
-  }, 800);
+  backupTimer = setTimeout(flushAutomaticBackup, 800);
 }
 
-function performBackup() {
+async function flushAutomaticBackup() {
+  if (!backupPending || fileJobs.busy || restoreDialogOpen || quitting) return;
+  try { await performBackup('Automatic backup'); }
+  catch (error) { if (error.name !== 'AbortError') console.error('Automatic backup failed:', error); }
+}
+
+async function performBackup(label = 'Backup') {
   if (!settings.backupFolder) throw new Error('Choose a backup folder first.');
+  if (fileJobs.busy) throw new Error('Another file operation is running. Wait for it or cancel it first.');
+  clearTimeout(backupTimer);
+  backupPending = false;
   try {
-    const result = backups.createSnapshot({ db, managedLibraryPath,
-      root: path.join(settings.backupFolder, 'PsyShelf Backup'), version: app.getVersion() });
+    const result = await fileJobs.run(label, job => job.task('snapshot', { databasePath, managedLibraryPath,
+      root: path.join(settings.backupFolder, 'PsyShelf Backup'), version: app.getVersion() }));
     lastBackupError = '';
     return result;
-  } catch (error) { lastBackupError = error.message; throw error; }
+  } catch (error) { if (error.name !== 'AbortError') lastBackupError = error.message; throw error; }
 }
 
-function getBackupStatus() {
-  const history = backups.listBackups(settings.backupFolder ? path.join(settings.backupFolder, 'PsyShelf Backup') : null);
-  return { history, safety: backups.listBackups(path.join(app.getPath('userData'), 'restore-safety')),
-    lastSuccessful: history[0]?.updatedAt || null, error: lastBackupError };
+async function getBackupStatus() {
+  const result = await workerTask('history', {
+    root: settings.backupFolder ? path.join(settings.backupFolder, 'PsyShelf Backup') : null,
+    safetyRoot: path.join(app.getPath('userData'), 'restore-safety')
+  });
+  return { ...result, lastSuccessful: result.history[0]?.updatedAt || null, error: lastBackupError };
 }
 
 async function restoreBackup(savedFolder) {
   if (restoreDialogOpen) throw new Error('A restore dialog is already open.');
   restoreDialogOpen = true;
   try {
-    let folder;
-    if (savedFolder !== undefined) {
-      const status = getBackupStatus();
-      const saved = [...status.history, ...status.safety].find(item => item.folder === savedFolder);
-      if (!saved) throw new Error('That backup is no longer in the history. Refresh settings or browse for it.');
-      folder = saved.folder;
-    } else {
-      const selected = await dialog.showOpenDialog(mainWindow, {
-        title: 'Select a backup folder containing psyshelf.sqlite',
-        defaultPath: settings.backupFolder ? path.join(settings.backupFolder, 'PsyShelf Backup') : app.getPath('userData'),
-        properties: ['openDirectory']
-      });
-      if (selected.canceled) return { canceled: true };
-      folder = selected.filePaths[0];
-    }
-    const summary = backups.inspectBackup(folder);
-    const answer = await dialog.showMessageBox(mainWindow, {
-      type: 'warning', title: 'Restore PsyShelf backup',
-      message: 'Replace the current library with this backup?',
-      detail: summary.resourceCount + ' resources, ' + summary.managedCount + ' managed files, ' + summary.referenceCount + ' referenced files.\n\n' +
-        'Backup: ' + folder + '\nSaved: ' + (summary.updatedAt || 'Unknown (older backup)') + '\n\n' +
-        'This replaces the current catalog and managed files, including changes made since this backup. A local safety backup will be saved first. Referenced originals are not included and must still exist at their original paths. Settings are kept. Open forms will be closed.',
-      buttons: ['Cancel', 'Restore library'], defaultId: 0, cancelId: 0, noLink: true
-    });
-    if (answer.response !== 1) return { canceled: true };
-    if (activeOperations > 0) throw new Error('Another operation is still running. Let it finish, then restore again.');
-    clearTimeout(backupTimer);
-    const userData = app.getPath('userData');
-    const prepared = backups.prepareRestore(folder, userData);
-    try {
-      const safety = backups.createSnapshot({ db, managedLibraryPath,
-        root: path.join(userData, 'restore-safety'), version: app.getVersion(), kind: 'before-restore' });
-      backups.installRestore({ staging: prepared.staging, userData,
-        close: () => { if (db) { db.close(); db = null; } },
-        open: () => initDatabase(false) });
-      for (const window of BrowserWindow.getAllWindows()) if (window !== mainWindow) window.close();
-      return { canceled: false, safetyFolder: safety.folder, resourceCount: prepared.resourceCount };
-    } finally {
-      if (!fs.existsSync(path.join(userData, 'restore-pending.json'))) {
-        try { backups.discardStaging(userData, prepared.staging); }
-        catch (error) { console.warn('Restore staging cleanup failed:', error.message); }
+    return await fileJobs.run('Restore backup', async job => {
+      let folder;
+      if (savedFolder !== undefined) {
+        const status = await getBackupStatus();
+        const saved = [...status.history, ...status.safety].find(item => item.folder === savedFolder);
+        if (!saved) throw new Error('That backup is no longer in the history. Refresh settings or browse for it.');
+        folder = saved.folder;
+      } else {
+        const selected = await dialog.showOpenDialog(mainWindow, {
+          title: 'Select a backup folder containing psyshelf.sqlite',
+          defaultPath: settings.backupFolder ? path.join(settings.backupFolder, 'PsyShelf Backup') : app.getPath('userData'),
+          properties: ['openDirectory']
+        });
+        if (selected.canceled) return { canceled: true };
+        folder = selected.filePaths[0];
       }
-    }
-  } finally { restoreDialogOpen = false; }
+      const summary = await job.task('inspect', { folder });
+      job.phase('Waiting for confirmation');
+      const answer = await dialog.showMessageBox(mainWindow, {
+        type: 'warning', title: 'Restore PsyShelf backup', message: 'Replace the current library with this backup?',
+        detail: summary.resourceCount + ' resources, ' + summary.managedCount + ' managed files, ' + summary.referenceCount + ' referenced files.\n\n' +
+          'Backup: ' + folder + '\nSaved: ' + (summary.updatedAt || 'Unknown (older backup)') + '\n\n' +
+          'This replaces the current catalog and managed files, including changes made since this backup. A local safety backup will be saved first. Referenced originals are not included and must still exist at their original paths. Settings are kept. Open forms will be closed. You can browse while files are prepared, but library changes are paused until restoration finishes.',
+        buttons: ['Cancel', 'Restore library'], defaultId: 0, cancelId: 0, noLink: true
+      });
+      if (answer.response !== 1) return { canceled: true };
+      job.check();
+      if (activeOperations > 0) throw new Error('Another library change is still running. Let it finish, then restore again.');
+      restoreLocked = true;
+      clearTimeout(backupTimer);
+      const userData = app.getPath('userData');
+      const prepared = await job.task('prepare-restore', { folder, userData });
+      try {
+        job.phase('Saving safety copy');
+        const safety = await job.task('snapshot', { databasePath, managedLibraryPath,
+          root: path.join(userData, 'restore-safety'), version: app.getVersion(), kind: 'before-restore' });
+        job.commit();
+        for (const window of BrowserWindow.getAllWindows()) if (window !== mainWindow) window.close();
+        backups.installRestore({ staging: prepared.staging, userData, cleanup: false,
+          close: () => { if (db) { db.close(); db = null; } }, open: () => initDatabase(false) });
+        backupPending = false;
+        return { canceled: false, safetyFolder: safety.folder, resourceCount: prepared.resourceCount };
+      } finally {
+        if (!fs.existsSync(path.join(userData, 'restore-pending.json'))) {
+          try { await job.cleanup('cleanup-restore', { userData, staging: prepared.staging }); }
+          catch (error) { console.warn('Restore staging cleanup failed:', error.message); }
+        }
+      }
+    });
+  } finally { restoreLocked = false; restoreDialogOpen = false; }
 }
 
 function createWindow() {
@@ -368,38 +399,53 @@ function createWindow() {
 
 function registerHandlers() {
   const handle = (channel, callback) => ipcMain.handle(channel, async (...args) => {
-    activeOperations++;
-    try { return await callback(...args); } finally { activeOperations--; }
+    const mutates = /^(resources:(add-files|add-url|update|delete)|agent:(analyze|review-correction|override-correction))$/.test(channel);
+    if (mutates && restoreLocked) throw new Error('Library changes are paused while a backup is being restored.');
+    if (mutates) activeOperations++;
+    try { return await callback(...args); } finally { if (mutates) activeOperations--; }
   });
   handle('resources:list', (_event, filters) => listResources(filters));
 
   handle('resources:add-files', async (_event, options = {}) => {
     const result = await dialog.showOpenDialog(mainWindow, {
-      title: 'Add resources to PsyShelf',
-      properties: ['openFile', 'multiSelections'],
+      title: 'Add resources to PsyShelf', properties: ['openFile', 'multiSelections'],
       filters: [{ name: 'All files', extensions: ['*'] }]
     });
     if (result.canceled) return [];
     const storageMode = options.storageMode === 'copy' ? 'copy' : 'reference';
-    return result.filePaths.map(sourcePath => {
-      let filePath = sourcePath;
-      if (storageMode === 'copy') {
-        filePath = uniqueManagedPath(sourcePath);
-        fs.copyFileSync(sourcePath, filePath);
+    return fileJobs.run('Import files', async job => {
+      const userData = app.getPath('userData');
+      let prepared;
+      const moved = [];
+      try {
+        if (storageMode === 'copy') prepared = await job.task('import', {
+          sources: result.filePaths, managedLibraryPath, userData
+        });
+        const files = prepared?.files || result.filePaths.map(source => ({ source, filePath: source }));
+        job.commit();
+        db.exec('BEGIN');
+        try {
+          const created = files.map(file => {
+            if (prepared) { fs.renameSync(file.destination, file.filePath); moved.push(file.filePath); }
+            const ext = path.extname(file.filePath).toLowerCase();
+            return insertResource({ title: path.basename(file.filePath, ext), authors: [],
+              categories: [inferResourceType(file.filePath)], languages: [],
+              description: 'Awaiting metadata analysis or manual description.', sourceKind: 'file',
+              filePath: file.filePath, storageMode, extension: ext, status: 'draft' });
+          });
+          db.exec('COMMIT');
+          return created;
+        } catch (error) {
+          db.exec('ROLLBACK');
+          for (const file of moved) await asyncFs.unlink(file);
+          throw error;
+        }
+      } finally {
+        if (prepared) {
+          try { await job.cleanup('cleanup-import', { userData, staging: prepared.staging }); }
+          catch (error) { console.warn('Import staging cleanup failed:', error.message); }
+        }
       }
-      const ext = path.extname(filePath).toLowerCase();
-      return insertResource({
-        title: path.basename(filePath, ext),
-        authors: [],
-        categories: [inferResourceType(filePath)],
-        languages: [],
-        description: 'Awaiting metadata analysis or manual description.',
-        sourceKind: 'file',
-        filePath,
-        storageMode,
-        extension: ext,
-        status: 'draft'
-      });
     });
   });
 
@@ -468,22 +514,11 @@ function registerHandlers() {
       properties: ['openDirectory', 'createDirectory']
     });
     if (selection.canceled) return { canceled: true };
-    const root = selection.filePaths[0];
-    let target = path.join(root, `${safeFilename(resource.title)}-share`);
-    let counter = 2;
-    while (fs.existsSync(target)) {
-      target = path.join(root, `${safeFilename(resource.title)}-share-${counter++}`);
-    }
-    fs.mkdirSync(target, { recursive: true });
-    const shared = { ...resource, filePath: undefined, sharedAt: now() };
-    fs.writeFileSync(path.join(target, 'resource.json'), JSON.stringify(shared, null, 2), 'utf8');
-    let fileIncluded = false;
-    if (includeFile && resource.filePath && fs.existsSync(resource.filePath)) {
-      fs.copyFileSync(resource.filePath, path.join(target, path.basename(resource.filePath)));
-      fileIncluded = true;
-    }
-    return { canceled: false, folder: target, fileIncluded };
+    return fileJobs.run('Export shared resource', job => job.task('share', {
+      root: selection.filePaths[0], resource, includeFile: Boolean(includeFile)
+    }));
   });
+
 
   handle('agent:status', () => getOllamaStatus());
 
@@ -575,6 +610,7 @@ function registerHandlers() {
     ...settings,
     databasePath,
     managedLibraryPath,
+    canUninstall: Boolean(removal.uninstallerPath(app)),
     agent: await getOllamaStatus()
   }));
 
@@ -597,6 +633,33 @@ function registerHandlers() {
   });
 
   handle('settings:sync-backup', () => performBackup());
+  handle('files:status', () => fileJobs.status);
+  handle('system:uninstall', async () => {
+    if (restoreDialogOpen) throw new Error('Finish or cancel restoration before uninstalling.');
+    try {
+      return await removal.uninstall({ app, dialog, window: mainWindow, stop: async () => {
+        quitting = true;
+        restoreLocked = true;
+        clearTimeout(backupTimer);
+        await fileJobs.stop();
+        await new Promise(resolve => setImmediate(resolve));
+        if (activeOperations > 0) throw new Error('Wait for the current library change to finish, then uninstall.');
+      } });
+    } catch (error) {
+      quitting = false;
+      restoreLocked = false;
+      if (backupPending) scheduleBackup();
+      throw error;
+    }
+  });
+  handle('files:cancel', (_event, id) => {
+    const accepted = fileJobs.cancel(id);
+    if (accepted && ['Backup', 'Automatic backup'].includes(fileJobs.status.label)) {
+      backupPending = false;
+      clearTimeout(backupTimer);
+    }
+    return { accepted };
+  });
   handle('settings:backup-status', () => getBackupStatus());
   ipcMain.handle('settings:restore-backup', (_event, folder) => restoreBackup(folder));
 
@@ -625,7 +688,17 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });
 
-app.on('before-quit', () => {
+app.on('before-quit', event => {
+  quitting = true;
+  clearTimeout(backupTimer);
+  if (fileJobs.busy) {
+    event.preventDefault();
+    if (!waitingToQuit) {
+      waitingToQuit = true;
+      fileJobs.stop().finally(() => { waitingToQuit = false; app.quit(); });
+    }
+    return;
+  }
   clearTimeout(backupTimer);
   if (db) db.close();
 });

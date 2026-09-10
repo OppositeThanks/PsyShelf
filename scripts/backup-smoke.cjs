@@ -60,24 +60,15 @@ async function run() {
 
     // A failed safety backup must stop before changing the live library.
     await mockDialogs(saved.folder, 1);
-    await application.evaluate((_electron, modulePath) => {
-      const backups = process.getBuiltinModule('module').createRequire(modulePath)(modulePath);
-      globalThis.originalSnapshot = backups.createSnapshot;
-      backups.createSnapshot = options => {
-        if (options.kind === 'before-restore') throw new Error('Simulated safety disk full');
-        return globalThis.originalSnapshot(options);
-      };
-    }, path.join(project, 'src/backup.cjs'));
+    fs.writeFileSync(path.join(data, 'restore-safety'), 'Simulate an unavailable safety destination');
     assert.match(await page.evaluate(async () => {
       try { await window.psyLibrary.restoreBackup(); return 'unexpected success'; }
       catch (error) { return error.message; }
-    }), /safety disk full/);
+    }), /EEXIST|ENOTDIR/);
     assert.equal(fs.readdirSync(data).filter(name => name.startsWith('.restore-')).length, 0);
     assert.equal((await page.evaluate(() => window.psyLibrary.listResources({}))).length, originalCount + 1);
     assert.equal(fs.readFileSync(managed.filePath, 'utf8'), 'Changed contents');
-    await application.evaluate((_electron, modulePath) => {
-      process.getBuiltinModule('module').createRequire(modulePath)(modulePath).createSnapshot = globalThis.originalSnapshot;
-    }, path.join(project, 'src/backup.cjs'));
+    fs.unlinkSync(path.join(data, 'restore-safety'));
 
     await mockDialogs(saved.folder, 1);
     await page.locator('#backupCard').click();

@@ -6,6 +6,7 @@
   <meta name="color-scheme" content="light">
   <title>PsyShelf</title>
   <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="file-activity.css">
 </head>
 <body>
   <div class="app-shell">
@@ -161,7 +162,7 @@
     <div class="dialog-card settings-card">
       <button class="dialog-close" type="button" data-close="settingsDialog" aria-label="Close">×</button>
       <p class="eyebrow">Configuration</p>
-      <h2>Agent & backup</h2>
+      <h2>Agent & backup</h2><section class="settings-section"><strong>Uninstall PsyShelf</strong><p>Remove the app. Choose whether to keep your library or delete local data. Available after installing the Windows app.</p><button class="button ghost" type="button" id="uninstallApp" disabled>Uninstall PsyShelf…</button></section>
       <section class="settings-section">
         <div class="settings-title"><span class="agent-orb">AI</span><div><strong>Free local intelligence</strong><small id="settingsAgentStatus">Checking Ollama…</small></div></div>
         <p>PsyShelf uses Ollama only on your computer. Qwen3 supports more than 100 languages and is a strong free starting point.</p>
@@ -186,5 +187,6 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <script src="app.js"></script>
+  <script src="file-activity.js"></script>
 </body>
 </html>
