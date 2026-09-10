@@ -28,6 +28,8 @@ function makeDemoApi() {
     getSettings: async () => ({ model: 'qwen3:4b', backupFolder: '', agent: { available: false, models: [] } }),
     updateSettings: async patch => patch,
     chooseBackupFolder: async () => ({ canceled: true }),
+    backupStatus: async () => ({ history: [], safety: [], lastSuccessful: null, error: '' }),
+    restoreBackup: async () => { throw new Error('Backup restoration is available in the desktop app.'); },
     syncBackup: async () => ({ folder: 'PsyShelf Backup', updatedAt: new Date().toISOString() }),
     openOfficialUrl: async url => window.open(url, '_blank')
   };
@@ -310,7 +312,31 @@ async function loadResources(selectId = null) {
   render();
 }
 
+async function refreshBackupStatus() {
+  try {
+    const status = await api.backupStatus();
+    $('#backupStatus').textContent = status.error ? 'Backup failed: ' + status.error :
+      status.lastSuccessful ? 'Last successful backup: ' + new Date(status.lastSuccessful).toLocaleString() : 'No successful backup found in the selected folder.';
+    const list = $('#backupHistory');
+    list.replaceChildren();
+    for (const item of [...status.safety, ...status.history]) {
+      const entry = document.createElement('li');
+      const label = document.createElement('span');
+      label.textContent = (item.kind === 'before-restore' ? 'Safety copy — ' : '') +
+        (item.updatedAt ? new Date(item.updatedAt).toLocaleString() : 'Unknown date') + ' ';
+      label.title = item.folder;
+      const button = document.createElement('button');
+      button.type = 'button'; button.className = 'button compact'; button.textContent = 'Restore';
+      button.dataset.restoreFolder = item.folder;
+      button.setAttribute('aria-label', 'Restore ' + label.textContent.trim());
+      entry.append(label, button);
+      list.append(entry);
+    }
+  } catch (error) { $('#backupStatus').textContent = 'Backup status unavailable: ' + errorMessage(error); }
+}
+
 async function refreshSettings() {
+  await refreshBackupStatus();
   try {
     state.settings = await api.getSettings();
     state.agent = state.settings.agent;
@@ -449,8 +475,33 @@ $('#chooseBackup').addEventListener('click', async () => {
   catch (error) { toast(errorMessage(error), true); }
 });
 $('#syncNow').addEventListener('click', async () => {
+  const button = $('#syncNow');
+  button.disabled = true;
   try { const result = await api.syncBackup(); toast(`Backup updated in ${result.folder}.`); }
   catch (error) { toast(errorMessage(error), true); }
+  finally { button.disabled = false; await refreshBackupStatus(); }
+});
+
+async function restoreFrom(folder) {
+  const button = $('#restoreBackup');
+  if (button.disabled) return;
+  button.disabled = true;
+  try {
+    const result = await api.restoreBackup(folder);
+    if (result.canceled) return;
+    state.selectedId = null;
+    state.query = ''; state.category = ''; state.language = '';
+    $('#searchInput').value = '';
+    for (const dialog of document.querySelectorAll('dialog[open]')) dialog.close();
+    await loadResources();
+    toast('Library restored. Safety backup: ' + result.safetyFolder);
+  } catch (error) { toast(errorMessage(error), true); }
+  finally { button.disabled = false; await refreshBackupStatus(); }
+}
+$('#restoreBackup').addEventListener('click', () => restoreFrom());
+$('#backupHistory').addEventListener('click', event => {
+  const button = event.target.closest('[data-restore-folder]');
+  if (button) restoreFrom(button.dataset.restoreFolder);
 });
 
 Promise.all([loadResources(), refreshSettings()]).catch(error => toast(errorMessage(error), true));

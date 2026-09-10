@@ -98,11 +98,21 @@ The helper never silently installs software. The user is redirected to the verif
 
 ## Google Drive and cloud backup
 
-Install Google Drive for Desktop or another sync client, then choose one of its local folders under **Agent & backup settings**. After database changes, PsyShelf automatically refreshes a `PsyShelf Backup` folder containing:
+Install Google Drive for Desktop or another sync client, then choose one of its local folders under **Agent & backup settings**. After database changes, PsyShelf automatically creates dated snapshots inside `PsyShelf Backup/`. Each snapshot contains:
 
 - `psyshelf.sqlite`
 - managed file copies under `library-files/`
 - `backup-info.json`
+
+### Restore a backup
+
+Open **Agent & backup settings → Restore backup…**, then select a dated backup folder containing `psyshelf.sqlite`. Or expand **Backup history & safety copies** and click **Restore** next to a saved copy. Original single-folder PsyShelf backups are also accepted. Check the resource and file counts, then choose **Restore library** to replace the current catalog and managed files. Cancel leaves the library unchanged.
+
+PsyShelf validates the database and checks that managed files exist before restoring. It reconnects managed files to this computer's library folder and saves a local safety snapshot under the application-data folder's `restore-safety/` directory before replacement. Use **Backup history & safety copies** to find that folder if you need to undo a restore. Settings stay unchanged. Referenced originals retain their old paths and need to exist there separately.
+
+New backups are stored in separate dated folders under `PsyShelf Backup/`, with the database, managed files, and backup information together. The settings panel shows backup history, the last successful backup in the selected folder, and backup errors. Older snapshots are retained until you delete them manually; allow disk space for full copies of the library. Local safety copies do not protect against loss of the computer.
+
+Restore stages the selected data before replacing the library, rolls back if opening the restored database fails, and recovers an interrupted replacement on next launch. Empty restored libraries stay empty. File copying is still synchronous, so large operations may temporarily pause the interface; background processing remains planned. This feature is in source and needs a new release to reach installed copies.
 
 Referenced originals are not copied into backups. This MVP provides a safe one-way backup, not multi-device conflict resolution. A future phone app should use an authenticated synchronization service rather than writing to the same SQLite file from two devices.
 
@@ -127,6 +137,10 @@ scripts/    Automated Electron smoke test
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for data boundaries and the mobile-ready direction.
 
 ## Update history
+
+### 2026-09-10
+
+- Added validated backup restoration, safety copies, dated backup history, and backup status in settings.
 
 ### 2026-09-09
 

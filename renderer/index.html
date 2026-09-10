@@ -172,7 +172,10 @@
       <section class="settings-section">
         <div class="settings-title"><span class="settings-glyph">☁</span><div><strong>Google Drive / cloud backup</strong><small id="settingsBackupPath">Not configured</small></div></div>
         <p>Choose a folder already synchronized by Google Drive for Desktop, OneDrive, or another provider. PsyShelf will place an updated database copy and managed files there.</p>
-        <div class="button-row"><button class="button ghost" id="chooseBackup" type="button">Choose folder</button><button class="button primary" id="syncNow" type="button">Back up now</button></div>
+        <p>Backups are kept in dated folders. Restore replaces your library and saves a safety copy first. Referenced original files are not included.</p>
+        <p id="backupStatus" role="status" aria-live="polite">Checking backup status…</p>
+        <div class="button-row"><button class="button ghost" id="chooseBackup" type="button">Choose folder</button><button class="button primary" id="syncNow" type="button">Back up now</button><button class="button ghost" id="restoreBackup" type="button">Restore backup…</button></div>
+        <details><summary>Backup history &amp; safety copies</summary><p>Restore a saved copy below, or use Restore backup to browse another folder. Older backups are kept until you remove them.</p><ul id="backupHistory" style="max-height: 180px; overflow: auto; overflow-wrap: anywhere;"></ul></details>
       </section>
       <section class="settings-section compact-section">
         <strong>Reminder for a later version</strong>

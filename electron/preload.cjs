@@ -18,5 +18,7 @@ contextBridge.exposeInMainWorld('psyLibrary', {
   updateSettings: patch => ipcRenderer.invoke('settings:update', patch),
   chooseBackupFolder: () => ipcRenderer.invoke('settings:choose-backup'),
   syncBackup: () => ipcRenderer.invoke('settings:sync-backup'),
+  backupStatus: () => ipcRenderer.invoke('settings:backup-status'),
+  restoreBackup: folder => ipcRenderer.invoke('settings:restore-backup', folder),
   openOfficialUrl: url => ipcRenderer.invoke('system:open-official-url', url)
 });

@@ -6,6 +6,11 @@ const { pathToFileURL } = require('node:url');
 const crypto = require('node:crypto');
 
 const seedData = require('../src/seed-data.cjs');
+const backups = require('../src/backup.cjs');
+let activeOperations = 0;
+let restoreDialogOpen = false;
+let lastBackupError = '';
+
 const {
   helperForExtension,
   inferResourceType,
@@ -38,6 +43,12 @@ if (process.env.PSYSHELF_TEST_DATA_DIR) {
   app.setPath('userData', path.resolve(process.env.PSYSHELF_TEST_DATA_DIR));
 }
 
+const hasInstanceLock = app.requestSingleInstanceLock();
+if (!hasInstanceLock) app.quit();
+app.on('second-instance', () => {
+  if (mainWindow) { if (mainWindow.isMinimized()) mainWindow.restore(); mainWindow.focus(); }
+});
+
 function now() {
   return new Date().toISOString();
 }
@@ -65,7 +76,7 @@ function writeSettings() {
   fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2), 'utf8');
 }
 
-function initDatabase() {
+function initDatabase(seedIfEmpty = true) {
   databasePath = path.join(app.getPath('userData'), 'psyshelf.sqlite');
   managedLibraryPath = path.join(app.getPath('userData'), 'library-files');
   fs.mkdirSync(managedLibraryPath, { recursive: true });
@@ -102,7 +113,7 @@ function initDatabase() {
   `);
 
   const count = db.prepare('SELECT COUNT(*) AS total FROM resources').get().total;
-  if (count === 0) {
+  if (count === 0 && seedIfEmpty) {
     const insert = db.prepare(`
       INSERT INTO resources
       (id, title, authors, categories, languages, description, source_kind, status, created_at, updated_at)
@@ -266,20 +277,74 @@ function scheduleBackup() {
   if (!settings?.backupFolder) return;
   clearTimeout(backupTimer);
   backupTimer = setTimeout(() => {
-    try { performBackup(); } catch (error) { console.error('Automatic backup failed:', error); }
+    try { performBackup(); } catch (error) { lastBackupError = error.message; console.error('Automatic backup failed:', error); }
   }, 800);
 }
 
 function performBackup() {
-  if (!settings.backupFolder) throw new Error('Choose a Google Drive or cloud-synced folder first.');
-  const targetRoot = path.join(settings.backupFolder, 'PsyShelf Backup');
-  fs.mkdirSync(targetRoot, { recursive: true });
-  fs.copyFileSync(databasePath, path.join(targetRoot, 'psyshelf.sqlite'));
-  if (fs.existsSync(managedLibraryPath)) {
-    fs.cpSync(managedLibraryPath, path.join(targetRoot, 'library-files'), { recursive: true, force: true });
-  }
-  fs.writeFileSync(path.join(targetRoot, 'backup-info.json'), JSON.stringify({ updatedAt: now(), version: app.getVersion() }, null, 2));
-  return { folder: targetRoot, updatedAt: now() };
+  if (!settings.backupFolder) throw new Error('Choose a backup folder first.');
+  try {
+    const result = backups.createSnapshot({ db, managedLibraryPath,
+      root: path.join(settings.backupFolder, 'PsyShelf Backup'), version: app.getVersion() });
+    lastBackupError = '';
+    return result;
+  } catch (error) { lastBackupError = error.message; throw error; }
+}
+
+function getBackupStatus() {
+  const history = backups.listBackups(settings.backupFolder ? path.join(settings.backupFolder, 'PsyShelf Backup') : null);
+  return { history, safety: backups.listBackups(path.join(app.getPath('userData'), 'restore-safety')),
+    lastSuccessful: history[0]?.updatedAt || null, error: lastBackupError };
+}
+
+async function restoreBackup(savedFolder) {
+  if (restoreDialogOpen) throw new Error('A restore dialog is already open.');
+  restoreDialogOpen = true;
+  try {
+    let folder;
+    if (savedFolder !== undefined) {
+      const status = getBackupStatus();
+      const saved = [...status.history, ...status.safety].find(item => item.folder === savedFolder);
+      if (!saved) throw new Error('That backup is no longer in the history. Refresh settings or browse for it.');
+      folder = saved.folder;
+    } else {
+      const selected = await dialog.showOpenDialog(mainWindow, {
+        title: 'Select a backup folder containing psyshelf.sqlite',
+        defaultPath: settings.backupFolder ? path.join(settings.backupFolder, 'PsyShelf Backup') : app.getPath('userData'),
+        properties: ['openDirectory']
+      });
+      if (selected.canceled) return { canceled: true };
+      folder = selected.filePaths[0];
+    }
+    const summary = backups.inspectBackup(folder);
+    const answer = await dialog.showMessageBox(mainWindow, {
+      type: 'warning', title: 'Restore PsyShelf backup',
+      message: 'Replace the current library with this backup?',
+      detail: summary.resourceCount + ' resources, ' + summary.managedCount + ' managed files, ' + summary.referenceCount + ' referenced files.\n\n' +
+        'Backup: ' + folder + '\nSaved: ' + (summary.updatedAt || 'Unknown (older backup)') + '\n\n' +
+        'This replaces the current catalog and managed files, including changes made since this backup. A local safety backup will be saved first. Referenced originals are not included and must still exist at their original paths. Settings are kept. Open forms will be closed.',
+      buttons: ['Cancel', 'Restore library'], defaultId: 0, cancelId: 0, noLink: true
+    });
+    if (answer.response !== 1) return { canceled: true };
+    if (activeOperations > 0) throw new Error('Another operation is still running. Let it finish, then restore again.');
+    clearTimeout(backupTimer);
+    const userData = app.getPath('userData');
+    const prepared = backups.prepareRestore(folder, userData);
+    try {
+      const safety = backups.createSnapshot({ db, managedLibraryPath,
+        root: path.join(userData, 'restore-safety'), version: app.getVersion(), kind: 'before-restore' });
+      backups.installRestore({ staging: prepared.staging, userData,
+        close: () => { if (db) { db.close(); db = null; } },
+        open: () => initDatabase(false) });
+      for (const window of BrowserWindow.getAllWindows()) if (window !== mainWindow) window.close();
+      return { canceled: false, safetyFolder: safety.folder, resourceCount: prepared.resourceCount };
+    } finally {
+      if (!fs.existsSync(path.join(userData, 'restore-pending.json'))) {
+        try { backups.discardStaging(userData, prepared.staging); }
+        catch (error) { console.warn('Restore staging cleanup failed:', error.message); }
+      }
+    }
+  } finally { restoreDialogOpen = false; }
 }
 
 function createWindow() {
@@ -302,9 +367,13 @@ function createWindow() {
 }
 
 function registerHandlers() {
-  ipcMain.handle('resources:list', (_event, filters) => listResources(filters));
+  const handle = (channel, callback) => ipcMain.handle(channel, async (...args) => {
+    activeOperations++;
+    try { return await callback(...args); } finally { activeOperations--; }
+  });
+  handle('resources:list', (_event, filters) => listResources(filters));
 
-  ipcMain.handle('resources:add-files', async (_event, options = {}) => {
+  handle('resources:add-files', async (_event, options = {}) => {
     const result = await dialog.showOpenDialog(mainWindow, {
       title: 'Add resources to PsyShelf',
       properties: ['openFile', 'multiSelections'],
@@ -334,7 +403,7 @@ function registerHandlers() {
     });
   });
 
-  ipcMain.handle('resources:add-url', (_event, resource) => {
+  handle('resources:add-url', (_event, resource) => {
     const url = validateHttpUrl(resource.url);
     if (!url) throw new Error('Enter a valid http or https URL.');
     return insertResource({
@@ -346,9 +415,9 @@ function registerHandlers() {
     });
   });
 
-  ipcMain.handle('resources:update', (_event, id, patch) => updateResource(id, patch));
+  handle('resources:update', (_event, id, patch) => updateResource(id, patch));
 
-  ipcMain.handle('resources:delete', (_event, id) => {
+  handle('resources:delete', (_event, id) => {
     const resource = getResource(id);
     if (!resource) return { deleted: false };
     db.prepare('DELETE FROM resources WHERE id = ?').run(id);
@@ -360,7 +429,7 @@ function registerHandlers() {
     };
   });
 
-  ipcMain.handle('resources:open', async (_event, id) => {
+  handle('resources:open', async (_event, id) => {
     const resource = getResource(id);
     if (!resource) throw new Error('Resource not found.');
     if (resource.url) {
@@ -375,7 +444,7 @@ function registerHandlers() {
     return { opened: true };
   });
 
-  ipcMain.handle('resources:preview', (_event, id) => {
+  handle('resources:preview', (_event, id) => {
     const resource = getResource(id);
     if (!resource) throw new Error('Resource not found.');
     if (resource.url) return { kind: 'url', url: resource.url, helper: { builtIn: false, name: 'Web browser', reason: 'Open this resource in your default browser.' } };
@@ -391,7 +460,7 @@ function registerHandlers() {
     return response;
   });
 
-  ipcMain.handle('resources:share', async (_event, id, includeFile) => {
+  handle('resources:share', async (_event, id, includeFile) => {
     const resource = getResource(id);
     if (!resource) throw new Error('Resource not found.');
     const selection = await dialog.showOpenDialog(mainWindow, {
@@ -416,9 +485,9 @@ function registerHandlers() {
     return { canceled: false, folder: target, fileIncluded };
   });
 
-  ipcMain.handle('agent:status', () => getOllamaStatus());
+  handle('agent:status', () => getOllamaStatus());
 
-  ipcMain.handle('agent:analyze', async (_event, id) => {
+  handle('agent:analyze', async (_event, id) => {
     const resource = getResource(id);
     if (!resource) throw new Error('Resource not found.');
     const excerpt = resource.filePath ? readableText(resource.filePath) : '';
@@ -438,7 +507,7 @@ function registerHandlers() {
     });
   });
 
-  ipcMain.handle('agent:review-correction', async (_event, id, request) => {
+  handle('agent:review-correction', async (_event, id, request) => {
     const resource = getResource(id);
     if (!resource) throw new Error('Resource not found.');
     const requestedChanges = {
@@ -471,7 +540,7 @@ function registerHandlers() {
     return { correctionId, decision, explanation, resource: updatedResource };
   });
 
-  ipcMain.handle('agent:override-correction', (_event, correctionId) => {
+  handle('agent:override-correction', (_event, correctionId) => {
     const correction = db.prepare('SELECT * FROM corrections WHERE id = ?').get(correctionId);
     if (!correction) throw new Error('Correction request not found.');
     const requested = JSON.parse(correction.requested_changes);
@@ -481,7 +550,7 @@ function registerHandlers() {
     return resource;
   });
 
-  ipcMain.handle('agent:chat', async (_event, message) => {
+  handle('agent:chat', async (_event, message) => {
     const resources = listResources();
     const matches = searchResources(resources, message).slice(0, 8);
     try {
@@ -502,21 +571,21 @@ function registerHandlers() {
     }
   });
 
-  ipcMain.handle('settings:get', async () => ({
+  handle('settings:get', async () => ({
     ...settings,
     databasePath,
     managedLibraryPath,
     agent: await getOllamaStatus()
   }));
 
-  ipcMain.handle('settings:update', (_event, patch) => {
+  handle('settings:update', (_event, patch) => {
     if (patch.model !== undefined) settings.model = String(patch.model).trim() || 'qwen3:4b';
     if (patch.language !== undefined) settings.language = String(patch.language).trim() || 'English';
     writeSettings();
     return settings;
   });
 
-  ipcMain.handle('settings:choose-backup', async () => {
+  handle('settings:choose-backup', async () => {
     const result = await dialog.showOpenDialog(mainWindow, {
       title: 'Choose your Google Drive or cloud-synced folder',
       properties: ['openDirectory', 'createDirectory']
@@ -527,9 +596,11 @@ function registerHandlers() {
     return { canceled: false, backupFolder: settings.backupFolder };
   });
 
-  ipcMain.handle('settings:sync-backup', () => performBackup());
+  handle('settings:sync-backup', () => performBackup());
+  handle('settings:backup-status', () => getBackupStatus());
+  ipcMain.handle('settings:restore-backup', (_event, folder) => restoreBackup(folder));
 
-  ipcMain.handle('system:open-official-url', async (_event, value) => {
+  handle('system:open-official-url', async (_event, value) => {
     const url = validateHttpUrl(value);
     if (!url || !OFFICIAL_HOSTS.has(new URL(url).hostname)) throw new Error('Only verified official download pages can be opened here.');
     await shell.openExternal(url);
@@ -538,8 +609,11 @@ function registerHandlers() {
 }
 
 app.whenReady().then(() => {
+  if (!hasInstanceLock) return;
   settings = readSettings();
-  initDatabase();
+  backups.recoverRestore(app.getPath('userData'));
+  const existingLibrary = fs.existsSync(path.join(app.getPath('userData'), 'psyshelf.sqlite'));
+  initDatabase(!existingLibrary);
   registerHandlers();
   createWindow();
   app.on('activate', () => {
