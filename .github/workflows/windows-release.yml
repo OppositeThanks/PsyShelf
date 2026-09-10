@@ -12,9 +12,16 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: windows-release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   build-windows:
     runs-on: windows-latest
+
+    outputs:
+      version: ${{ steps.version.outputs.version }}
 
     steps:
       - name: Check out source
@@ -42,6 +49,18 @@ jobs:
           if ("${{ github.ref_name }}" -ne "v$version") {
             throw "Tag ${{ github.ref_name }} does not match package version $version. Expected v$version."
           }
+
+      - name: Set build version
+        id: version
+        shell: pwsh
+        run: |
+          $version = node -p "require('./package.json').version"
+          if ("${{ github.ref_type }}" -ne "tag") {
+            $parts = $version.Split('.')
+            $version = "$($parts[0]).$($parts[1]).${{ github.run_number }}"
+            npm pkg set "version=$version"
+          }
+          "version=$version" >> $env:GITHUB_OUTPUT
 
       - name: Build Windows installer
         run: pnpm run dist:win
@@ -71,7 +90,7 @@ jobs:
           if-no-files-found: error
 
   publish-release:
-    if: github.ref_type == 'tag'
+    if: github.ref_type == 'tag' || (github.ref == 'refs/heads/main' && github.event_name != 'pull_request')
     needs: build-windows
     runs-on: ubuntu-latest
     permissions:
@@ -99,12 +118,17 @@ jobs:
 
           The versioned installer is an identical copy. You only need one .exe; checksum files and GitHub's source-code archives are optional and are not needed to install the app. Local AI features require the separate Ollama setup described in the app.
           '@ | Set-Content -Encoding utf8 release-notes.md
-          gh release create "${{ github.ref_name }}" `
+          $tag = "v${{ needs.build-windows.outputs.version }}"
+          gh release view $tag *> $null
+          if ($LASTEXITCODE -eq 0) { exit 0 }
+          gh release create $tag `
             "dist/PsyShelf-Setup-*-Windows.exe" `
             "dist/PsyShelf-Setup-*-Windows.exe.sha256" `
             "dist/PsyShelf-Setup-Windows.exe" `
             "dist/PsyShelf-Setup-Windows.exe.sha256" `
-            --verify-tag `
+            --target "${{ github.sha }}" `
+            --latest `
             --notes-file release-notes.md `
             --generate-notes `
-            --title "PsyShelf ${{ github.ref_name }}"
+            --title "PsyShelf $tag"
+          if ($LASTEXITCODE -ne 0) { throw "Release publication failed" }

@@ -6,6 +6,14 @@ The first launch includes the usable entries imported from the original `RECURSO
 
 ## What works in this MVP
 
+Resource details now include publication year, clinical topic, theoretical approach,
+audience, a 1–5 rating, and personal notes. Use **Edit details & notes** in a resource’s
+details panel, or fill these optional fields when adding a link. These fields save
+directly without AI review. Search includes year, topic, approach, audience and notes;
+the sort menu supports highest rating and newest publication. Existing libraries are
+migrated automatically. The fields are included in backups and shared metadata exports,
+including personal notes.
+
 - Store any file format as either a reference to its current location or a managed copy.
 - Add web links with title, authors, categories, languages, and a short description.
 - Assign multiple authors, categories, and languages to one resource.
@@ -51,6 +59,10 @@ pnpm install
 pnpm start
 ```
 
+For a live desktop preview, run `pnpm dev`. Changes under `renderer/` reload the
+window; changes under `electron/` or `src/` restart the app. Save any unfinished
+form edits before changing source files. Close the window to stop the preview.
+
 Run the checks with:
 
 ```powershell
@@ -67,18 +79,35 @@ pnpm run dist:win
 
 End users should use the direct `.exe` download above. GitHub's **Source code (zip)** and **Code > Download ZIP** contain source files, not the installer.
 
-For developer testing, the **Build Windows executable** workflow can be started manually from the repository's **Actions** tab. Actions artifacts are ZIP archives and must be extracted; they are not the end-user download route. Manual and branch runs build installers but do not publish a release.
+Every successful push to **main** now tests, builds, and publishes a Windows installer automatically. Manual runs on main also publish; pull requests only build. Build versions use the package major/minor and workflow run number (for example, 0.2.42). Check the installed version at the top of **Agent & backup settings**.
 
-For a permanent public download, create and push a tag matching the version in `package.json` (currently `v0.1.0`):
+The stable download link points to the latest successful release. Download and run the new installer to update an existing installation; installed apps do not update themselves. Failed builds leave the previous download available. GitHub Actions artifacts are ZIP archives intended for development; end users only need the release EXE.
 
-```powershell
-git tag v0.1.0
-git push origin v0.1.0
-```
+Matching version tags can still publish explicit releases. Use a higher major/minor in package.json before starting a new release series.
 
-The tag run creates a GitHub Release and attaches `PsyShelf-Setup-0.1.0-Windows.exe` plus an identical `PsyShelf-Setup-Windows.exe` and SHA-256 checksums. The stable filename keeps the direct download link working across releases. Users only need one `.exe`; checksum files are optional. Before publishing another version, update the `version` field in `package.json` and use the matching `v<version>` tag.
+### Windows SmartScreen
+
+The installer is currently unsigned, so Windows may show **Unknown publisher**. Only run installers obtained from this repository that you trust. Removing the unknown-publisher label requires a trusted code-signing certificate or signing service. Even signed new apps can receive SmartScreen reputation warnings. Do not disable Windows protection. See [Microsoft's signing and reputation guidance](https://learn.microsoft.com/en-us/windows/apps/package-and-deploy/smartscreen-reputation).
 
 ## Free local AI setup
+
+On first use, the **Agent setup** assistant checks RAM, available memory, CPU,
+graphics information, and free space on the estimated Ollama model drive locally.
+It recommends Qwen3 0.6B, 1.7B, 4B, or 8B, with conservative memory/CPU limits.
+It explains how to install Ollama, copy the model download command into PowerShell,
+and verify installation before selecting the model. Nothing downloads automatically.
+Close it to continue without AI; reopen it through **Agent & backup settings →
+Check computer & set up agent**, including to scan after a hardware change.
+
+The estimates are not performance guarantees or GPU compatibility checks. Graphics
+are informational; recommendations use a CPU/RAM baseline. Model storage is inferred
+from `OLLAMA_MODELS` or the default user folder and may differ from the running
+Ollama service. Model calls use a 4,096-token context budget to limit memory use;
+very large catalog prompts may exceed it. PsyShelf no longer silently substitutes a
+different installed model when the selected model is missing.
+
+Download sizes come from the [official Qwen3 model list](https://ollama.com/library/qwen3).
+Installation guidance follows [Ollama for Windows](https://docs.ollama.com/windows).
 
 1. Install [Ollama for Windows](https://ollama.com/download/windows).
 2. Open PowerShell and run `ollama pull qwen3:4b`.
@@ -149,6 +178,9 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for data boundaries and the mob
 ## Update history
 
 ### 2026-09-10
+
+- Ship the previously local sidebar scrolling, resource notes/details, preview, language, and setup improvements in the public installer.
+- Publish tested main builds automatically; show the installed version in settings and explain SmartScreen signing requirements.
 
 - Added background file operations with progress, cancellation, safe import commits, and queued automatic backups.
 

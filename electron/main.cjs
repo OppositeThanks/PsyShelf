@@ -26,6 +26,8 @@ let activeOperations = 0;
 let restoreDialogOpen = false;
 let lastBackupError = '';
 
+const { normalizeDetails } = require('../src/resource-details.cjs');
+const { MODELS, recommendModel, detectHardware } = require('../src/agent-setup.cjs');
 const {
   helperForExtension,
   inferResourceType,
@@ -53,6 +55,28 @@ let settingsPath;
 let databasePath;
 let managedLibraryPath;
 let backupTimer;
+const previewResources = new Map();
+const developmentWatchers = [];
+let developmentTimer;
+let developmentRestartNeeded = false;
+
+function watchDevelopmentFiles() {
+  if (app.isPackaged || !process.argv.includes('--dev')) return;
+  for (const folder of ['renderer', 'electron', 'src']) {
+    developmentWatchers.push(fs.watch(path.join(__dirname, '..', folder), { recursive: true }, () => {
+      developmentRestartNeeded ||= folder !== 'renderer';
+      clearTimeout(developmentTimer);
+      developmentTimer = setTimeout(() => {
+        if (!developmentRestartNeeded) {
+          if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.reloadIgnoringCache();
+        } else {
+          app.relaunch();
+          app.quit();
+        }
+      }, 300);
+    }));
+  }
+}
 
 if (process.env.PSYSHELF_TEST_DATA_DIR) {
   app.setPath('userData', path.resolve(process.env.PSYSHELF_TEST_DATA_DIR));
@@ -127,6 +151,9 @@ function initDatabase(seedIfEmpty = true) {
     );
   `);
 
+  if (!db.prepare('PRAGMA table_info(resources)').all().some(column => column.name === 'details')) {
+    db.exec("ALTER TABLE resources ADD COLUMN details TEXT NOT NULL DEFAULT '{}'");
+  }
   const count = db.prepare('SELECT COUNT(*) AS total FROM resources').get().total;
   if (count === 0 && seedIfEmpty) {
     const insert = db.prepare(`
@@ -147,6 +174,7 @@ function initDatabase(seedIfEmpty = true) {
 function fromRow(row) {
   if (!row) return null;
   return {
+    ...normalizeDetails(JSON.parse(row.details || '{}')),
     id: row.id,
     title: row.title,
     authors: JSON.parse(row.authors || '[]'),
@@ -177,12 +205,13 @@ function listResources(filters = {}) {
 }
 
 function insertResource(item) {
+  const details = normalizeDetails(item);
   const timestamp = now();
   const id = randomId();
   db.prepare(`
     INSERT INTO resources
-    (id, title, authors, categories, languages, description, source_kind, file_path, url, storage_mode, extension, status, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    (id, title, authors, categories, languages, description, source_kind, file_path, url, storage_mode, extension, status, created_at, updated_at, details)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     id,
     String(item.title || 'Untitled resource').trim(),
@@ -197,7 +226,8 @@ function insertResource(item) {
     item.extension || null,
     item.status || 'draft',
     timestamp,
-    timestamp
+    timestamp,
+    JSON.stringify(details)
   );
   scheduleBackup();
   return getResource(id);
@@ -206,6 +236,7 @@ function insertResource(item) {
 function updateResource(id, patch) {
   const current = getResource(id);
   if (!current) throw new Error('Resource not found.');
+  const details = normalizeDetails(patch, current);
   const next = {
     title: patch.title !== undefined ? String(patch.title).trim() || current.title : current.title,
     authors: patch.authors !== undefined ? normalizeList(patch.authors) : current.authors,
@@ -216,11 +247,11 @@ function updateResource(id, patch) {
   };
   db.prepare(`
     UPDATE resources
-    SET title = ?, authors = ?, categories = ?, languages = ?, description = ?, status = ?, updated_at = ?
+    SET title = ?, authors = ?, categories = ?, languages = ?, description = ?, status = ?, updated_at = ?, details = ?
     WHERE id = ?
   `).run(
     next.title, JSON.stringify(next.authors), JSON.stringify(next.categories), JSON.stringify(next.languages),
-    next.description, next.status, now(), id
+    next.description, next.status, now(), JSON.stringify(details), id
   );
   scheduleBackup();
   return getResource(id);
@@ -268,9 +299,9 @@ async function getOllamaStatus() {
 async function callOllama(messages, json = false) {
   const status = await getOllamaStatus();
   if (!status.available) throw new Error('Ollama is not running. Open Agent settings for the free local setup.');
-  const model = status.models.includes(settings.model) ? settings.model : status.models[0];
-  if (!model) throw new Error(`No local model is installed. Run: ollama pull ${settings.model}`);
-  const payload = { model, messages, stream: false, options: { temperature: 0.15 } };
+  const model = settings.model;
+  if (!status.models.includes(model)) throw new Error(`The selected model is not installed. Run: ollama pull ${model}`);
+  const payload = { model, messages, stream: false, options: { temperature: 0.15, num_ctx: 4096 } };
   if (json) payload.format = 'json';
   const response = await fetch(`${OLLAMA_BASE}/api/chat`, {
     method: 'POST',
@@ -403,6 +434,72 @@ function registerHandlers() {
     if (mutates && restoreLocked) throw new Error('Library changes are paused while a backup is being restored.');
     if (mutates) activeOperations++;
     try { return await callback(...args); } finally { if (mutates) activeOperations--; }
+  });
+  handle('resources:open-preview', async (_event, id) => {
+    const resource = getResource(id);
+    if (!resource) throw new Error('Resource not found.');
+    const previewWindow = new BrowserWindow({
+      width: 1000, height: 760, title: `${resource.title} — Preview`,
+      backgroundColor: '#fffdf8',
+      webPreferences: { preload: path.join(__dirname, 'preview-preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true }
+    });
+    const senderId = previewWindow.webContents.id;
+    previewResources.set(senderId, resource);
+    previewWindow.on('closed', () => previewResources.delete(senderId));
+    previewWindow.setMenuBarVisibility(false);
+    previewWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+    previewWindow.webContents.on('will-navigate', event => event.preventDefault());
+    await previewWindow.loadFile(path.join(__dirname, '..', 'renderer', 'preview.html'));
+    return { opened: true };
+  });
+  handle('preview:data', event => {
+    const resource = previewResources.get(event.sender.id);
+    if (!resource || event.senderFrame !== event.sender.mainFrame) throw new Error('Preview unavailable.');
+    const base = { title: resource.title, language: settings.language };
+    if (resource.url) return { ...base, kind: 'url', url: validateHttpUrl(resource.url) };
+    if (!resource.filePath || !fs.existsSync(resource.filePath)) return { ...base, kind: 'missing' };
+    const kind = previewKind(resource.filePath);
+    return { ...base, kind, fileUrl: pathToFileURL(resource.filePath).toString(),
+      content: kind === 'text' ? readableText(resource.filePath) : undefined,
+      helper: helperForExtension(resource.filePath) };
+  });
+  handle('preview:open-original', async event => {
+    const resource = previewResources.get(event.sender.id);
+    if (!resource || event.senderFrame !== event.sender.mainFrame) throw new Error('Preview unavailable.');
+    if (resource.url) {
+      const url = validateHttpUrl(resource.url);
+      if (!url) throw new Error('Invalid link.');
+      await shell.openExternal(url);
+    } else {
+      if (!resource.filePath || !fs.existsSync(resource.filePath)) throw new Error('File not found.');
+      const error = await shell.openPath(resource.filePath);
+      if (error) throw new Error(error);
+    }
+  });
+  handle('setup:scan', async () => {
+    const specs = await detectHardware();
+    try {
+      const gpu = await Promise.race([app.getGPUInfo('complete'), new Promise((_, reject) => {
+        const timer = setTimeout(() => reject(new Error('GPU scan timed out')), 3000);
+        timer.unref();
+      })]);
+      specs.gpu = (gpu.gpuDevice || []).map(device => device.deviceString).filter(Boolean).join(', ') || 'Not reported';
+    } catch { specs.gpu = 'Not available'; }
+    return { specs, recommendation: recommendModel(specs), agent: await getOllamaStatus() };
+  });
+  handle('setup:dismiss', () => {
+    settings.agentSetupSeen = true;
+    writeSettings();
+    return { saved: true };
+  });
+  handle('setup:use-model', async (_event, model) => {
+    if (!MODELS.some(item => item.model === model)) throw new Error('Choose a model recommended by the setup assistant.');
+    const status = await getOllamaStatus();
+    if (!status.available || !status.models.includes(model)) throw new Error('The model is not installed yet. Complete the download in PowerShell, then try again.');
+    settings.model = model;
+    settings.agentSetupSeen = true;
+    writeSettings();
+    return { model };
   });
   handle('resources:list', (_event, filters) => listResources(filters));
 
@@ -608,6 +705,7 @@ function registerHandlers() {
 
   handle('settings:get', async () => ({
     ...settings,
+    appVersion: app.getVersion(),
     databasePath,
     managedLibraryPath,
     canUninstall: Boolean(removal.uninstallerPath(app)),
@@ -616,8 +714,12 @@ function registerHandlers() {
 
   handle('settings:update', (_event, patch) => {
     if (patch.model !== undefined) settings.model = String(patch.model).trim() || 'qwen3:4b';
-    if (patch.language !== undefined) settings.language = String(patch.language).trim() || 'English';
+    if (patch.language !== undefined) {
+      if (!['English', 'French', 'Spanish'].includes(patch.language)) throw new Error('Unsupported interface language.');
+      settings.language = patch.language;
+    }
     writeSettings();
+    if (patch.language !== undefined) for (const window of BrowserWindow.getAllWindows()) window.webContents.send('interface-language', settings.language);
     return settings;
   });
 
@@ -679,6 +781,7 @@ app.whenReady().then(() => {
   initDatabase(!existingLibrary);
   registerHandlers();
   createWindow();
+  watchDevelopmentFiles();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
@@ -699,6 +802,8 @@ app.on('before-quit', event => {
     }
     return;
   }
+  clearTimeout(developmentTimer);
+  for (const watcher of developmentWatchers) watcher.close();
   clearTimeout(backupTimer);
   if (db) db.close();
 });

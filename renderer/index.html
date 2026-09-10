@@ -11,6 +11,7 @@
 <body>
   <div class="app-shell">
     <aside class="sidebar">
+      <div class="sidebar-navigation">
       <div class="brand">
         <div class="brand-mark" aria-hidden="true">Ψ</div>
         <div>
@@ -33,7 +34,8 @@
         <div id="languageFilters" class="filter-list"></div>
       </section>
 
-      <div class="sidebar-spacer"></div>
+      </div>
+      <div class="sidebar-footer">
       <div class="backup-card" id="backupCard">
         <span class="status-dot"></span>
         <div>
@@ -44,6 +46,7 @@
       <button class="nav-item secondary" id="settingsButton">
         <span>Agent & backup settings</span><span>›</span>
       </button>
+      </div>
     </aside>
 
     <main class="workspace">
@@ -67,6 +70,8 @@
             <span id="resultCount">0 resources</span>
             <select id="sortSelect" aria-label="Sort resources">
               <option value="recent">Recently updated</option>
+              <option value="rating">Highest rated</option>
+              <option value="year">Newest publication</option>
               <option value="title">Title A–Z</option>
               <option value="author">Author A–Z</option>
             </select>
@@ -103,6 +108,24 @@
       </div>
     </aside>
   </div>
+
+  <div id="resourceMenu" class="resource-menu" role="menu" aria-label="Resource actions" hidden>
+    <button type="button" role="menuitem" data-action="info">More info</button>
+    <button type="button" role="menuitem" data-action="correct">Request correction</button>
+    <button type="button" role="menuitem" data-action="preview">Preview / open</button>
+    <button type="button" role="menuitem" data-action="delete" class="menu-delete">Delete from database…</button>
+  </div>
+  <dialog id="deleteDialog" aria-labelledby="deleteTitle" aria-describedby="deleteDescription">
+    <form method="dialog" class="dialog-card">
+      <h2 id="deleteTitle">Delete this library entry?</h2>
+      <p id="deleteDescription"></p>
+      <p>Only the database entry will be deleted. Original files and managed copies will stay on your computer.</p>
+      <div class="dialog-actions">
+        <button class="button ghost" value="cancel" autofocus>Cancel</button>
+        <button class="button danger" id="confirmDelete" value="delete">Confirm deletion</button>
+      </div>
+    </form>
+  </dialog>
 
   <dialog id="storageDialog">
     <form method="dialog" class="dialog-card">
@@ -161,13 +184,19 @@
   <dialog id="settingsDialog">
     <div class="dialog-card settings-card">
       <button class="dialog-close" type="button" data-close="settingsDialog" aria-label="Close">×</button>
+      <p id="appVersion" translate="no"></p>
       <p class="eyebrow">Configuration</p>
       <h2>Agent & backup</h2><section class="settings-section"><strong>Uninstall PsyShelf</strong><p>Remove the app. Choose whether to keep your library or delete local data. Available after installing the Windows app.</p><button class="button ghost" type="button" id="uninstallApp" disabled>Uninstall PsyShelf…</button></section>
       <section class="settings-section">
+        <label class="field"><span>Interface language</span><select id="interfaceLanguage"><option value="English">English</option><option value="French">Français</option><option value="Spanish">Español</option></select></label>
+        <p>Changes the interface language. Your resource content stays unchanged.</p>
+      </section>
+      <section class="settings-section">
         <div class="settings-title"><span class="agent-orb">AI</span><div><strong>Free local intelligence</strong><small id="settingsAgentStatus">Checking Ollama…</small></div></div>
-        <p>PsyShelf uses Ollama only on your computer. Qwen3 supports more than 100 languages and is a strong free starting point.</p>
+        <p>PsyShelf uses Ollama only on your computer. Find a local model suited to this computer with the setup assistant.</p>
+        <button class="button ghost" id="runAgentSetup" type="button">Check computer & set up agent</button>
         <label class="field"><span>Model</span><input id="modelInput" value="qwen3:4b"></label>
-        <div class="command-row"><code>ollama pull qwen3:4b</code><button class="button compact" id="copyModelCommand">Copy</button></div>
+        <div class="command-row"><code id="settingsModelCommand">ollama pull qwen3:4b</code><button class="button compact" id="copyModelCommand">Copy</button></div>
         <div class="button-row"><button class="button ghost" id="openOllama" type="button">Get Ollama for Windows</button><button class="button primary" id="saveModel" type="button">Save model</button></div>
       </section>
       <section class="settings-section">
@@ -178,14 +207,60 @@
         <div class="button-row"><button class="button ghost" id="chooseBackup" type="button">Choose folder</button><button class="button primary" id="syncNow" type="button">Back up now</button><button class="button ghost" id="restoreBackup" type="button">Restore backup…</button></div>
         <details><summary>Backup history &amp; safety copies</summary><p>Restore a saved copy below, or use Restore backup to browse another folder. Older backups are kept until you remove them.</p><ul id="backupHistory" style="max-height: 180px; overflow: auto; overflow-wrap: anywhere;"></ul></details>
       </section>
-      <section class="settings-section compact-section">
-        <strong>Reminder for a later version</strong>
-        <p>Optional fields: publication year, clinical topic, theoretical approach, audience, rating, and personal notes.</p>
-      </section>
     </div>
   </dialog>
 
+  <dialog id="resourceDetailsDialog" aria-labelledby="resourceDetailsTitle">
+    <form id="resourceDetailsForm" class="dialog-card wide">
+      <button class="dialog-close" type="button" data-close="resourceDetailsDialog" aria-label="Close">×</button>
+      <h2 id="resourceDetailsTitle">Resource details & personal notes</h2>
+      <p id="resourceDetailsName"></p>
+      <input name="resourceId" type="hidden">
+      <div class="field-grid" id="resourceDetailsFields"></div>
+      <p id="resourceDetailsError" role="alert"></p>
+      <div class="dialog-actions"><button class="button ghost" type="button" data-close="resourceDetailsDialog">Cancel</button><button class="button primary" type="submit">Save details</button></div>
+    </form>
+  </dialog>
+  <template id="extraDetailsTemplate">
+    <label class="field"><span>Publication year</span><input name="publicationYear" type="number" min="1" max="9999" step="1" placeholder="Optional"></label>
+    <label class="field"><span>Rating</span><select name="rating"><option value="">Not rated</option><option value="1">1 / 5</option><option value="2">2 / 5</option><option value="3">3 / 5</option><option value="4">4 / 5</option><option value="5">5 / 5</option></select></label>
+    <label class="field"><span>Clinical topic</span><input name="clinicalTopic" placeholder="e.g. grief, anxiety"></label>
+    <label class="field"><span>Theoretical approach</span><input name="theoreticalApproach" placeholder="e.g. CBT, humanistic"></label>
+    <label class="field full"><span>Audience</span><input name="audience" placeholder="e.g. clinicians, students, parents"></label>
+    <label class="field full"><span>Personal notes</span><textarea name="personalNotes" rows="5" placeholder="Your observations and reading notes"></textarea></label>
+  </template>
+  <dialog id="agentSetupDialog" aria-labelledby="agentSetupTitle">
+    <div class="dialog-card settings-card setup-card">
+      <button class="dialog-close" type="button" data-close="agentSetupDialog" aria-label="Close setup">×</button>
+      <p class="eyebrow">Your first local agent</p>
+      <h2 id="agentSetupTitle">An agent that fits your computer</h2>
+      <p>We check your hardware locally. Nothing is uploaded. You can skip this and keep using your library.</p>
+      <div id="setupScanStatus" role="status" aria-live="polite">Checking your computer…</div>
+      <div id="setupResults" hidden>
+        <section class="settings-section">
+          <h3>Your computer</h3>
+          <dl id="setupSpecs" class="setup-specs"></dl>
+          <p>Graphics are shown for reference. GPU acceleration depends on Ollama and your drivers; the recommendation uses a CPU/RAM baseline.</p>
+        </section>
+        <section class="settings-section setup-recommendation">
+          <h3 id="setupModelTitle"></h3>
+          <p id="setupReason"></p>
+          <p id="setupDownloadSize"></p>
+        </section>
+        <div id="setupSteps">
+          <ol class="setup-steps">
+            <li><h3>Install and open Ollama</h3><p>Download the Windows installer from the official website, run it, and follow its prompts. Open Ollama from the Start menu after installation. If it is already running, go to step 2.</p><button class="button ghost" id="setupGetOllama" type="button">Open official Ollama download</button></li>
+            <li><h3>Download your recommended model</h3><p>Open a new PowerShell window from the Start menu. Copy and paste this command, then press Enter. Keep the window open until the download finishes. Internet is needed for this step; the terminal shows download progress.</p><div class="command-row"><code id="setupCommand"></code><button class="button compact" id="setupCopyCommand" type="button">Copy command</button></div><p>If “ollama” is not recognized, finish installing Ollama and open a new PowerShell window. If connection fails, open Ollama and retry.</p></li>
+            <li><h3>Connect the model to PsyShelf</h3><p>When PowerShell reports success, return here. We will check the model is installed before saving it as your library agent. This replaces your selected model without deleting existing downloads.</p><button class="button primary" id="setupUseModel" type="button">Check installation & use this model</button></li>
+          </ol>
+        </div>
+        <p id="setupActionStatus" role="status" aria-live="polite"></p>
+      </div>
+      <div class="button-row setup-actions"><button class="button ghost" id="setupRescan" type="button">Scan again</button><button class="button ghost" type="button" data-close="agentSetupDialog">Continue to library</button></div>
+    </div>
+  </dialog>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="i18n.js"></script>
   <script src="app.js"></script>
   <script src="file-activity.js"></script>
 </body>

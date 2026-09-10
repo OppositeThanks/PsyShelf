@@ -104,7 +104,9 @@ function searchResources(resources, query) {
         ...(resource.authors || []),
         ...(resource.categories || []),
         ...(resource.languages || []),
-        resource.description
+        resource.description,
+        resource.publicationYear, resource.clinicalTopic, resource.theoreticalApproach,
+        resource.audience, resource.personalNotes
       ].join(' ').toLocaleLowerCase();
       const score = terms.reduce((sum, term) => sum + (haystack.includes(term) ? 1 : 0), 0);
       return { resource, score };

@@ -96,12 +96,14 @@ function filteredResources() {
     if (state.category && !resource.categories.includes(state.category)) return false;
     if (state.language && !resource.languages.includes(state.language)) return false;
     if (!terms.length) return true;
-    const haystack = [resource.title, ...resource.authors, ...resource.categories, ...resource.languages, resource.description].join(' ').toLocaleLowerCase();
+    const haystack = [resource.title, ...resource.authors, ...resource.categories, ...resource.languages, resource.description, resource.publicationYear, resource.clinicalTopic, resource.theoreticalApproach, resource.audience, resource.personalNotes].join(' ').toLocaleLowerCase();
     return terms.every(term => haystack.includes(term));
   });
   if (state.sort === 'title') result.sort((a, b) => a.title.localeCompare(b.title));
   if (state.sort === 'author') result.sort((a, b) => (a.authors[0] || '').localeCompare(b.authors[0] || ''));
   if (state.sort === 'recent') result.sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
+  if (state.sort === 'rating') result.sort((a, b) => (Number(b.rating) || 0) - (Number(a.rating) || 0));
+  if (state.sort === 'year') result.sort((a, b) => (Number(b.publicationYear) || 0) - (Number(a.publicationYear) || 0));
   return result;
 }
 
@@ -137,6 +139,7 @@ function renderCards() {
   const resources = filteredResources();
   const label = state.category || state.language || (state.query ? `Search: “${state.query}”` : 'All resources');
   $('#activeFilterLabel').textContent = label;
+  $('#activeFilterLabel').setAttribute('translate', state.category || state.language ? 'no' : 'yes');
   $('#resultCount').textContent = `${resources.length} resource${resources.length === 1 ? '' : 's'}`;
   $('#emptyState').hidden = resources.length > 0;
   $('#resourceGrid').innerHTML = resources.map(resource => {
@@ -158,6 +161,73 @@ function renderCards() {
   }));
 }
 
+let contextResourceId = null;
+let contextScrollTop = 0;
+function closeResourceMenu(restoreFocus = false) {
+  $('#resourceMenu').hidden = true;
+  if (restoreFocus) $$('.resource-card').find(card => card.dataset.id === contextResourceId)?.focus({ preventScroll: true });
+  contextResourceId = null;
+}
+
+function openResourceMenu(card, x, y) {
+  contextResourceId = card.dataset.id;
+  contextScrollTop = $('.library-view').scrollTop;
+  const menu = $('#resourceMenu');
+  menu.hidden = false;
+  menu.style.left = `${Math.max(8, Math.min(x, innerWidth - menu.offsetWidth - 8))}px`;
+  menu.style.top = `${Math.max(8, Math.min(y, innerHeight - menu.offsetHeight - 8))}px`;
+  menu.querySelector('button').focus({ preventScroll: true });
+}
+
+$('#resourceGrid').addEventListener('contextmenu', event => {
+  const card = event.target.closest('.resource-card');
+  if (!card) return;
+  event.preventDefault();
+  openResourceMenu(card, event.clientX, event.clientY);
+});
+$('#resourceGrid').addEventListener('keydown', event => {
+  if (event.key !== 'ContextMenu' && !(event.shiftKey && event.key === 'F10')) return;
+  const card = event.target.closest('.resource-card');
+  if (!card) return;
+  event.preventDefault();
+  const bounds = card.getBoundingClientRect();
+  openResourceMenu(card, bounds.left + 12, bounds.top + 12);
+});
+$('#resourceMenu').addEventListener('click', event => {
+  const action = event.target.closest('[data-action]')?.dataset.action;
+  const resource = state.resources.find(item => item.id === contextResourceId);
+  if (!action || !resource) return;
+  closeResourceMenu(true);
+  state.selectedId = resource.id;
+  renderCards();
+  renderDetails();
+  $('.tab[data-tab="details"]').click();
+  if (action === 'correct') openCorrection(resource);
+  else if (action === 'preview') {
+    showPreview(resource);
+
+  } else if (action === 'delete') deleteSelected(resource);
+  else $('#detailsPanel').scrollTop = 0;
+});
+$('#resourceMenu').addEventListener('keydown', event => {
+  const items = [...$('#resourceMenu').querySelectorAll('button')];
+  const current = items.indexOf(document.activeElement);
+  if (['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) {
+    event.preventDefault();
+    const next = event.key === 'Home' ? 0 : event.key === 'End' ? items.length - 1 : (current + (event.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length;
+    items[next].focus();
+  } else if (event.key === 'Escape' || event.key === 'Tab') {
+    if (event.key === 'Escape') event.preventDefault();
+    closeResourceMenu(true);
+  }
+});
+document.addEventListener('pointerdown', event => { if (!event.target.closest('#resourceMenu')) closeResourceMenu(); });
+$('.library-view').addEventListener('scroll', () => {
+  if ($('.library-view').scrollTop !== contextScrollTop) closeResourceMenu();
+});
+window.addEventListener('resize', () => closeResourceMenu());
+window.addEventListener('blur', () => closeResourceMenu());
+
 function renderDetails() {
   const resource = currentResource();
   if (!resource) {
@@ -175,13 +245,13 @@ function renderDetails() {
         <p>${escapeHtml(resource.authors.join(', ') || 'Author not set')}</p>
       </div>
       <div class="detail-actions">
-        <button class="button primary" id="previewButton" ${canOpen ? '' : 'disabled'}>${resource.url ? 'Open link' : 'Preview or open'}</button>
+        <button class="button primary" id="previewButton" >Preview</button>
         <button class="button ghost" id="analyzeButton">Run metadata agent</button>
         <button class="button ghost" id="correctButton">Request correction</button>
       </div>
       <section class="detail-section">
         <h4>Short description</h4>
-        <p class="detail-description">${escapeHtml(resource.description || 'No description yet.')}</p>
+        <p class="detail-description" ${resource.description ? '' : 'data-ui'}>${escapeHtml(resource.description || 'No description yet.')}</p>
       </section>
       <section class="detail-section">
         <h4>Classification</h4>
@@ -190,10 +260,19 @@ function renderDetails() {
       <section class="detail-section">
         <h4>Record</h4>
         <div class="metadata-list">
-          <div class="metadata-item"><span>Source</span><strong>${escapeHtml(sourceLabel)}</strong></div>
-          <div class="metadata-item"><span>Status</span><strong>${resource.status === 'draft' ? 'Needs review' : 'Ready'}</strong></div>
+          <div class="metadata-item"><span>Source</span><strong data-ui>${escapeHtml(sourceLabel)}</strong></div>
+          <div class="metadata-item"><span>Status</span><strong data-ui>${resource.status === 'draft' ? 'Needs review' : 'Ready'}</strong></div>
           <div class="metadata-item"><span>Updated</span><strong>${new Date(resource.updatedAt).toLocaleDateString()}</strong></div>
         </div>
+      </section>
+      <section class="detail-section">
+        <h4>Resource details</h4>
+        <div class="metadata-list">
+          ${[['Year', resource.publicationYear], ['Clinical topic', resource.clinicalTopic], ['Approach', resource.theoreticalApproach], ['Audience', resource.audience], ['Rating', resource.rating ? `${resource.rating} / 5` : null]].map(([label, value]) => `<div class="metadata-item"><span>${label}</span><strong ${value ? '' : 'data-ui'}>${escapeHtml(value || (label === 'Rating' ? 'Not rated' : 'Not set'))}</strong></div>`).join('')}
+        </div>
+        <h4>Personal notes</h4>
+        <p class="detail-description" ${resource.personalNotes ? '' : 'data-ui'}>${escapeHtml(resource.personalNotes || 'No notes yet.')}</p>
+        <div class="button-row"><button class="button ghost" id="editResourceDetails">Edit details & notes</button></div>
       </section>
       <section class="detail-section" id="previewSection" hidden>
         <h4>Preview helper</h4>
@@ -212,32 +291,20 @@ function renderDetails() {
   $('#correctButton').addEventListener('click', () => openCorrection(resource));
   $('#shareButton').addEventListener('click', () => shareSelected(resource));
   $('#deleteButton').addEventListener('click', () => deleteSelected(resource));
+  $('#editResourceDetails').addEventListener('click', () => {
+    const form = $('#resourceDetailsForm');
+    form.reset();
+    form.elements.resourceId.value = resource.id;
+    for (const field of ['publicationYear', 'clinicalTopic', 'theoreticalApproach', 'audience', 'rating', 'personalNotes']) form.elements[field].value = resource[field] ?? '';
+    $('#resourceDetailsName').textContent = resource.title;
+    $('#resourceDetailsError').textContent = '';
+    $('#resourceDetailsDialog').showModal();
+  });
 }
 
 async function showPreview(resource) {
-  if (resource.url) {
-    try { await api.openResource(resource.id); } catch (error) { toast(errorMessage(error), true); }
-    return;
-  }
-  const section = $('#previewSection');
-  const content = $('#previewContent');
-  section.hidden = false;
-  content.innerHTML = '<div class="helper-box"><p>Checking preview support…</p></div>';
-  try {
-    const preview = await api.previewResource(resource.id);
-    if (preview.kind === 'image') content.innerHTML = `<img src="${escapeHtml(preview.fileUrl)}" alt="Preview of ${escapeHtml(resource.title)}">`;
-    else if (preview.kind === 'audio') content.innerHTML = `<audio controls src="${escapeHtml(preview.fileUrl)}"></audio>`;
-    else if (preview.kind === 'video') content.innerHTML = `<video controls src="${escapeHtml(preview.fileUrl)}"></video>`;
-    else if (preview.kind === 'pdf') content.innerHTML = `<iframe src="${escapeHtml(preview.fileUrl)}" title="PDF preview"></iframe>`;
-    else if (preview.kind === 'text') content.innerHTML = `<pre class="preview-text">${escapeHtml(preview.content)}</pre>`;
-    else content.innerHTML = helperMarkup(preview.helper, preview.kind === 'missing');
-    content.insertAdjacentHTML('beforeend', `<div class="helper-box"><button class="button ghost" id="openOriginal">Open with Windows</button></div>`);
-    $('#openOriginal').addEventListener('click', () => api.openResource(resource.id).catch(error => toast(errorMessage(error), true)));
-    const helperButton = $('#openHelperLink');
-    if (helperButton) helperButton.addEventListener('click', () => api.openOfficialUrl(helperButton.dataset.url).catch(error => toast(errorMessage(error), true)));
-  } catch (error) {
-    content.innerHTML = `<div class="helper-box"><strong>Preview unavailable</strong><p>${escapeHtml(errorMessage(error))}</p></div>`;
-  }
+  try { await api.openPreview(resource.id); }
+  catch (error) { toast(errorMessage(error), true); }
 }
 
 function helperMarkup(helper, missing) {
@@ -283,10 +350,18 @@ async function shareSelected(resource) {
 }
 
 async function deleteSelected(resource) {
-  if (!window.confirm(`Remove “${resource.title}” from the library? The original file will be preserved.`)) return;
+  const confirmation = $('#deleteDialog');
+  if (confirmation.open) return;
+  confirmation.returnValue = 'cancel';
+  $('#deleteDescription').textContent = `You are about to delete “${resource.title}” from your library.`;
+  const confirmed = await new Promise(resolve => {
+    confirmation.addEventListener('close', () => resolve(confirmation.returnValue === 'delete'), { once: true });
+    confirmation.showModal();
+  });
+  if (!confirmed) return;
   try {
     const result = await api.deleteResource(resource.id);
-    state.selectedId = null;
+    if (state.selectedId === resource.id) state.selectedId = null;
     await loadResources();
     toast(result.message || 'Entry removed.');
   } catch (error) { toast(errorMessage(error), true); }
@@ -339,12 +414,16 @@ async function refreshSettings() {
   await refreshBackupStatus();
   try {
     state.settings = await api.getSettings();
+    $('#appVersion').textContent = `PsyShelf ${state.settings.appVersion}`;
     $('#uninstallApp').disabled = !state.settings.canUninstall;
+    window.psyI18n.setLanguage(state.settings.language);
+    $('#interfaceLanguage').value = window.psyI18n.language;
     state.agent = state.settings.agent;
     const available = state.agent.available;
     $('#agentModeLabel').textContent = available ? `Local · ${state.agent.models[0] || state.settings.model}` : 'Catalog search · Local AI offline';
     $('#settingsAgentStatus').textContent = available ? `${state.agent.models.length} local model${state.agent.models.length === 1 ? '' : 's'} available` : 'Ollama is not running yet';
     $('#modelInput').value = state.settings.model || 'qwen3:4b';
+    $('#settingsModelCommand').textContent = `ollama pull ${$('#modelInput').value}`;
     $('#settingsBackupPath').textContent = state.settings.backupFolder || 'Not configured';
     $('#backupLabel').textContent = state.settings.backupFolder ? 'Automatic cloud-folder backup on' : 'Cloud backup not set';
   } catch (error) {
@@ -505,7 +584,105 @@ $('#backupHistory').addEventListener('click', event => {
   if (button) restoreFrom(button.dataset.restoreFolder);
 });
 
-Promise.all([loadResources(), refreshSettings()]).catch(error => toast(errorMessage(error), true));
+$('#resourceDetailsFields').append($('#extraDetailsTemplate').content.cloneNode(true));
+$('#urlForm .field-grid').append($('#extraDetailsTemplate').content.cloneNode(true));
+$('#resourceDetailsForm').addEventListener('submit', async event => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const button = form.querySelector('[type="submit"]');
+  button.disabled = true;
+  const { resourceId, ...details } = Object.fromEntries(new FormData(form));
+  try {
+    replaceResource(await api.updateResource(resourceId, details));
+    $('#resourceDetailsDialog').close();
+    toast('Resource details saved.');
+  } catch (error) { $('#resourceDetailsError').textContent = errorMessage(error); }
+  finally { button.disabled = false; }
+});
+
+let setupRecommendation = null;
+let setupScanGeneration = 0;
+
+async function scanAgentHardware() {
+  const generation = ++setupScanGeneration;
+  setupRecommendation = null;
+  $('#setupResults').hidden = true;
+  $('#setupRescan').disabled = true;
+  $('#setupScanStatus').textContent = 'Checking your computer…';
+  $('#setupActionStatus').textContent = '';
+  try {
+    const { specs, recommendation, agent } = await api.scanHardware();
+    if (generation !== setupScanGeneration) return;
+    setupRecommendation = recommendation.model;
+    const rows = [
+      ['System', specs.platform], ['Processor', `${specs.cpu} · ${specs.threads} logical processors`],
+      ['Memory', `${specs.totalGB.toFixed(1)} GiB total · ${specs.freeGB.toFixed(1)} GiB available now`],
+      ['Graphics', specs.gpu], ['Free disk', specs.diskGB === null ? 'Could not detect; check space before downloading.' : `${specs.diskGB.toFixed(1)} GB on the estimated model drive`],
+      ['Model folder', `${specs.modelPath} (estimated; Ollama may use a different location)`]
+    ];
+    $('#setupSpecs').innerHTML = rows.map(([key, value]) => `<dt>${escapeHtml(key)}</dt><dd>${escapeHtml(value)}</dd>`).join('');
+    $('#setupModelTitle').textContent = recommendation.model ? `Recommended: ${recommendation.model}` : 'Use the library without AI for now';
+    $('#setupReason').textContent = recommendation.reason;
+    $('#setupDownloadSize').textContent = recommendation.model ? `Approximately ${recommendation.downloadGB} GB to download. Allow extra space for Ollama and installation. Close memory-heavy apps before using the agent.` : '';
+    $('#setupSteps').hidden = !recommendation.model;
+    $('#setupCommand').textContent = recommendation.model ? `ollama pull ${recommendation.model}` : '';
+    $('#setupScanStatus').textContent = 'Computer check complete.';
+    $('#setupActionStatus').textContent = agent.available ? (agent.models.includes(recommendation.model) ? 'This model is already installed. You can connect it in step 3.' : 'Ollama is running. Follow step 2 to download the recommended model.') : 'Ollama is offline or not installed. Start with step 1.';
+    $('#setupResults').hidden = false;
+  } catch (error) {
+    $('#setupScanStatus').textContent = `Could not check this computer: ${errorMessage(error)} You can scan again or continue to the library.`;
+  } finally { if (generation === setupScanGeneration) $('#setupRescan').disabled = false; }
+}
+
+function openAgentSetup() {
+  if (!api.scanHardware) { toast('Computer setup is available in the Windows desktop app.'); return; }
+  $('#settingsDialog').close();
+  if (!$('#agentSetupDialog').open) $('#agentSetupDialog').showModal();
+  scanAgentHardware();
+}
+
+$('#runAgentSetup').addEventListener('click', openAgentSetup);
+$('#setupRescan').addEventListener('click', scanAgentHardware);
+$('#agentSetupDialog').addEventListener('close', () => {
+  setupScanGeneration++;
+  api.dismissSetup?.().catch(error => toast(`Could not save setup preference: ${errorMessage(error)}`, true));
+});
+$('#setupGetOllama').addEventListener('click', () => api.openOfficialUrl('https://ollama.com/download/windows').catch(error => toast(errorMessage(error), true)));
+$('#setupCopyCommand').addEventListener('click', async () => {
+  if (!setupRecommendation) return;
+  try { await navigator.clipboard.writeText(`ollama pull ${setupRecommendation}`); $('#setupActionStatus').textContent = 'Command copied. Paste it into a new PowerShell window and press Enter.'; }
+  catch { $('#setupActionStatus').textContent = 'Copy the command shown in step 2 manually.'; }
+});
+$('#setupUseModel').addEventListener('click', async () => {
+  if (!setupRecommendation) return;
+  const model = setupRecommendation;
+  $('#setupUseModel').disabled = true;
+  $('#setupRescan').disabled = true;
+  $('#setupActionStatus').textContent = 'Checking the local installation…';
+  try {
+    await api.useSetupModel(model);
+    await refreshSettings();
+    $('#setupActionStatus').textContent = `${model} is installed and selected. Your library agent is ready. You can continue to the library.`;
+  } catch (error) { $('#setupActionStatus').textContent = errorMessage(error); }
+  finally { $('#setupUseModel').disabled = false; $('#setupRescan').disabled = false; }
+});
+$('#modelInput').addEventListener('input', () => { $('#settingsModelCommand').textContent = `ollama pull ${$('#modelInput').value.trim() || 'qwen3:4b'}`; });
+$('#interfaceLanguage').addEventListener('change', async event => {
+  const previous = window.psyI18n.language;
+  try {
+    await api.updateSettings({ language: event.target.value });
+    window.psyI18n.setLanguage(event.target.value);
+    if (state.settings) state.settings.language = event.target.value;
+  } catch (error) { event.target.value = previous; toast(errorMessage(error), true); }
+});
+api.onLanguageChange?.(language => {
+  window.psyI18n.setLanguage(language);
+  $('#interfaceLanguage').value = language;
+});
+
+Promise.all([loadResources(), refreshSettings()]).then(() => {
+  if (api.scanHardware && state.settings && !state.settings.agentSetupSeen) openAgentSetup();
+}).catch(error => toast(errorMessage(error), true));
 
 $('#uninstallApp').addEventListener('click', async () => {
   const button = $('#uninstallApp');

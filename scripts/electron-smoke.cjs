@@ -29,6 +29,8 @@ async function run() {
       if (message.type() === 'error') console.error('Renderer console:', message.text());
     });
     await page.waitForSelector('.resource-card');
+    await page.waitForSelector('#agentSetupDialog[open]');
+    await page.locator('#agentSetupDialog [data-close]').first().click();
     assert.equal(await page.locator('.resource-card').count(), 17, 'Google Sheet seed count');
     await page.locator('.resource-card').first().click();
     await page.waitForSelector('.detail-hero h2');
@@ -61,6 +63,8 @@ async function run() {
     assert.equal(await page.locator('#modelInput').inputValue(), 'qwen3:4b');
     await page.locator('[data-close="settingsDialog"]').click();
 
+    // Keep correction fallback deterministic even when Ollama runs on this computer.
+    await electronApp.evaluate(() => { global.fetch = async () => { throw new Error('Offline smoke test'); }; });
     await page.locator('#correctButton').click();
     await page.locator('#correctionForm [name="title"]').fill('Smoke test resource — corrected');
     await page.locator('#correctionForm [name="reason"]').fill('Owner verified the preferred title.');

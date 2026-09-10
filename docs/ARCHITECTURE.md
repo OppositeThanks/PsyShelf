@@ -54,6 +54,11 @@ The renderer is plain web technology and the data contract is already isolated b
 4. Upload only managed files, preserving reference-only semantics for local files.
 5. Encrypt cloud data and add offline queues.
 
-## Deferred fields reminder
+## Additional resource details
 
-The requested MVP deliberately stays simple. Revisit publication year, clinical topic, theoretical orientation, audience, rating, and personal notes after the base workflow has been used with real resources.
+The `resources.details` JSON column stores publication year, clinical topic,
+theoretical approach, audience, rating, and personal notes. Startup adds this column
+to older databases without replacing their records. Main-process normalization
+validates year and rating and preserves untouched fields during metadata corrections
+or AI analysis. Direct editing is available without Ollama; exports and backups
+retain these fields.

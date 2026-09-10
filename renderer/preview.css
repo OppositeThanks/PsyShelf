@@ -1,0 +1,11 @@
+* { box-sizing: border-box; }
+body { margin: 0; height: 100dvh; display: flex; flex-direction: column; background: #fffdf8; color: #20332c; font: 14px/1.5 "Segoe UI", sans-serif; }
+header { display: flex; flex: none; gap: 12px; align-items: center; flex-wrap: wrap; padding: 14px 20px; border-bottom: 1px solid #dedfd6; }
+h1 { flex: 1; margin: 0; font-size: 19px; overflow-wrap: anywhere; }
+button { border: 1px solid #dedfd6; border-radius: 8px; padding: 8px 12px; cursor: pointer; background: white; color: #1f6650; }
+#status { margin: 12px 20px; }
+#content { flex: 1; min-height: 0; overflow: auto; }
+iframe { display: block; width: 100%; height: 100%; border: 0; background: white; }
+img, video { display: block; width: 100%; height: 100%; object-fit: contain; }
+audio { display: block; width: calc(100% - 40px); margin: 20px; }
+pre { margin: 20px; white-space: pre-wrap; overflow-wrap: anywhere; font: 13px/1.6 Consolas, monospace; }
