@@ -128,6 +128,10 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for data boundaries and the mob
 
 ## Update history
 
+### 2026-09-10
+
+- Added the [improvement checklist](docs/IMPROVEMENTS.md) to track planned features and tick off completed work.
+
 ### 2026-09-09
 
 - Simplified Windows setup to install for the current user, create shortcuts, and launch PsyShelf automatically. The installer can be deleted after setup.
