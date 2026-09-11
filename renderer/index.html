@@ -36,6 +36,7 @@
 
       </div>
       <div class="sidebar-footer">
+      <button id="updateNotice" class="nav-item secondary" type="button" hidden><span>Update available</span><span>↑</span></button>
       <div class="backup-card" id="backupCard">
         <span class="status-dot"></span>
         <div>
@@ -185,6 +186,21 @@
     <div class="dialog-card settings-card">
       <button class="dialog-close" type="button" data-close="settingsDialog" aria-label="Close">×</button>
       <p id="appVersion" translate="no"></p>
+      <section class="settings-section" id="updatesSection">
+        <strong>Application updates</strong>
+        <p>Check GitHub for new versions. Download the installer here, then run it when you are ready.</p>
+        <label><input type="checkbox" id="automaticUpdates"> Notify me about new versions automatically</label>
+        <p id="updateStatus" role="status" aria-live="polite">Updates have not been checked yet.</p>
+        <p id="updateVersion" translate="no"></p>
+        <progress id="updateProgress" max="100" value="0" aria-label="Update download progress" hidden></progress>
+        <p id="updateDownloadSize" translate="no"></p>
+        <div class="button-row">
+          <button class="button ghost" type="button" id="checkUpdates">Check for updates</button>
+          <button class="button primary" type="button" id="downloadUpdate" hidden>Download update</button>
+          <button class="button ghost" type="button" id="cancelUpdate" hidden>Cancel download</button>
+          <button class="button ghost" type="button" id="showUpdateDownload" hidden>Show installer in Downloads</button>
+        </div>
+      </section>
       <p class="eyebrow">Configuration</p>
       <h2>Agent & backup</h2><section class="settings-section"><strong>Uninstall PsyShelf</strong><p>Remove the app. Choose whether to keep your library or delete local data. Available after installing the Windows app.</p><button class="button ghost" type="button" id="uninstallApp" disabled>Uninstall PsyShelf…</button></section>
       <section class="settings-section">
@@ -263,5 +279,6 @@
   <script src="i18n.js"></script>
   <script src="app.js"></script>
   <script src="file-activity.js"></script>
+  <script src="updates.js"></script>
 </body>
 </html>

@@ -81,7 +81,7 @@ End users should use the direct `.exe` download above. GitHub's **Source code (z
 
 Every successful push to **main** now tests, builds, and publishes a Windows installer automatically. Manual runs on main also publish; pull requests only build. Build versions use the package major/minor and workflow run number (for example, 0.2.42). Check the installed version at the top of **Agent & backup settings**.
 
-The stable download link points to the latest successful release. Download and run the new installer to update an existing installation; installed apps do not update themselves. Failed builds leave the previous download available. GitHub Actions artifacts are ZIP archives intended for development; end users only need the release EXE.
+The stable download link points to the latest successful release. Use **Agent & backup settings → Application updates** to check and download a newer installer. Run the downloaded EXE when you are ready; installation is never automatic. Versions before this feature need one manual download first. Failed builds leave the previous download available. GitHub Actions artifacts are ZIP archives intended for development; end users only need the release EXE.
 
 Matching version tags can still publish explicit releases. Use a higher major/minor in package.json before starting a new release series.
 
@@ -116,6 +116,14 @@ Installation guidance follows [Ollama for Windows](https://docs.ollama.com/windo
 Qwen3 is a practical multilingual starting point: the 4B package is approximately 2.5 GB and the model family supports more than 100 languages. Larger Qwen3 variants can be selected later if the computer has enough memory and the 4B model is not accurate enough. See the [official Ollama Qwen3 library page](https://ollama.com/library/qwen3).
 
 PsyShelf sends selected catalog information and document excerpts only to the Ollama service running on `127.0.0.1`. It does not require a paid AI API.
+
+## In-app update notifications and downloads
+
+Installed Windows x64 builds check GitHub at startup and every six hours while open. A sidebar notice appears when a newer stable installer is available. Turn automatic checks off in **Agent & backup settings → Application updates**; **Check for updates** still works manually. These checks contact GitHub without uploading library content.
+
+Choose **Download update** to save the installer in your Windows Downloads folder. Progress and cancellation are available while the app remains usable. The download is pinned to the checked release and its SHA-256 checksum is verified before the final EXE appears. Failed or cancelled partial downloads are removed, and existing downloads are preserved.
+
+Choose **Show installer in Downloads**, then run it when you are ready. Installation is not automatic; you can delete the EXE afterward. Existing SmartScreen warnings may still appear because installers are unsigned. Downloaded files remain in Downloads after restarting PsyShelf; the in-app download status lasts for the current session. Offline or rate-limited checks can be retried. Development builds offer manual checks only.
 
 ## Answers linked to sources and pages
 
@@ -205,6 +213,8 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for data boundaries and the mob
 - Established the repository workflow: every completed modification includes a README update, appropriate checks, and a commit pushed to GitHub.
 
 ### 2026-09-11
+
+- Added automatic in-app update notices, manual checks, cancellable installer downloads with checksum verification, and French/Spanish controls.
 
 - Added document-grounded answers with source excerpts, PDF page navigation, validated reference IDs, offline excerpt search, and translated controls.
 

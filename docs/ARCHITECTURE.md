@@ -66,3 +66,7 @@ retain these fields.
 ## Source-grounded answers
 
 `source-evidence.cjs` extracts local PDF pages using PDF.js and text passages, ranks lexical matches, and validates structured model references. `evidence-search.cjs` runs retrieval in a bounded worker with a 90-second timeout; it does not block the Electron event loop or persist document text. `agent:chat` passes at most eight excerpts to local Ollama and rejects answers with missing or unknown source IDs. The renderer builds source cards with textContent and keeps excerpts and generated answers outside interface translation. Page numbers originate from PDF extraction, never from model output. PDF preview navigation uses the physical page number in the local viewer URL. Catalog-only evidence is labeled explicitly.
+
+## Application updates
+
+`app-updates.cjs` queries the fixed public GitHub latest-release endpoint and compares stable numeric versions. It accepts only versioned Windows assets under this repository, streams an explicitly requested download into a unique `.part` file in Downloads, and checks its exact size and SHA-256 before renaming it to EXE. No renderer-supplied URL or path is accepted. The existing installer is never launched automatically. Electron exposes check/download/cancel/reveal operations and broadcasts progress; quit waits for partial-download cleanup. Installed builds check on startup and every six hours unless the persisted preference disables checks. Test data directories isolate downloads and disable automatic network checks.

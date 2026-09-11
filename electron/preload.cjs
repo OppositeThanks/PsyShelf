@@ -1,6 +1,13 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('psyLibrary', {
+  updateStatus: () => ipcRenderer.invoke('updates:status'),
+  checkForUpdates: () => ipcRenderer.invoke('updates:check'),
+  downloadUpdate: () => ipcRenderer.invoke('updates:download'),
+  cancelUpdate: () => ipcRenderer.invoke('updates:cancel'),
+  setAutomaticUpdates: enabled => ipcRenderer.invoke('updates:automatic', enabled),
+  showUpdateDownload: () => ipcRenderer.invoke('updates:show-download'),
+  onUpdateStatus: callback => ipcRenderer.on('updates:status', (_event, status) => callback(status)),
   onLanguageChange: callback => ipcRenderer.on('interface-language', (_event, language) => callback(language)),
   scanHardware: () => ipcRenderer.invoke('setup:scan'),
   dismissSetup: () => ipcRenderer.invoke('setup:dismiss'),

@@ -8,6 +8,10 @@ const crypto = require('node:crypto');
 const seedData = require('../src/seed-data.cjs');
 const backups = require('../src/backup.cjs');
 const removal = require('./uninstall.cjs');
+const { AppUpdates } = require('../src/app-updates.cjs');
+let updates;
+let updateTimer;
+let initialUpdateTimer;
 const { translate } = require('../renderer/i18n.js');
 const localizedDialog = Object.fromEntries(['showOpenDialog', 'showMessageBox'].map(method => [method, (window, options) => {
   const t = text => translate(text, settings?.language || 'English');
@@ -92,6 +96,9 @@ function watchDevelopmentFiles() {
 
 if (process.env.PSYSHELF_TEST_DATA_DIR) {
   app.setPath('userData', path.resolve(process.env.PSYSHELF_TEST_DATA_DIR));
+  const testDownloads = path.join(app.getPath('userData'), 'test-downloads');
+  fs.mkdirSync(testDownloads, { recursive: true });
+  app.setPath('downloads', testDownloads);
 }
 
 const hasInstanceLock = app.requestSingleInstanceLock();
@@ -113,7 +120,8 @@ function readSettings() {
   const defaults = {
     model: 'qwen3:4b',
     backupFolder: '',
-    language: 'English'
+    language: 'English',
+    checkUpdates: true
   };
   try {
     return { ...defaults, ...JSON.parse(fs.readFileSync(settingsPath, 'utf8')) };
@@ -441,6 +449,22 @@ function createWindow() {
 }
 
 function registerHandlers() {
+  ipcMain.handle('updates:status', () => ({ ...updates.snapshot(), automatic: settings.checkUpdates !== false }));
+  ipcMain.handle('updates:check', () => updates.check());
+  ipcMain.handle('updates:download', () => updates.download());
+  ipcMain.handle('updates:cancel', () => { updates.cancel(); return { cancelled: true }; });
+  ipcMain.handle('updates:automatic', (_event, enabled) => {
+    if (typeof enabled !== 'boolean') throw new Error('Invalid update preference.');
+    settings.checkUpdates = enabled;
+    writeSettings();
+    return { automatic: enabled };
+  });
+  ipcMain.handle('updates:show-download', async () => {
+    const file = await updates.downloadedFile();
+    if (!file) throw new Error('The downloaded installer was moved or removed. Download it again.');
+    shell.showItemInFolder(file);
+    return { shown: true };
+  });
   const handle = (channel, callback) => ipcMain.handle(channel, async (...args) => {
     const mutates = /^(resources:(add-files|add-url|update|delete)|agent:(analyze|review-correction|override-correction))$/.test(channel);
     if (mutates && restoreLocked) throw new Error('Library changes are paused while a backup is being restored.');
@@ -792,8 +816,15 @@ app.whenReady().then(() => {
   backups.recoverRestore(app.getPath('userData'));
   const existingLibrary = fs.existsSync(path.join(app.getPath('userData'), 'psyshelf.sqlite'));
   initDatabase(!existingLibrary);
+  updates = new AppUpdates({ currentVersion: app.getVersion(), downloads: app.getPath('downloads'), notify: status => {
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('updates:status', { ...status, automatic: settings.checkUpdates !== false });
+  } });
   registerHandlers();
   createWindow();
+  const checkUpdates = () => { if (!quitting && settings.checkUpdates !== false && app.isPackaged && !process.env.PSYSHELF_TEST_DATA_DIR) void updates.check(); };
+  initialUpdateTimer = setTimeout(checkUpdates, 2500);
+  updateTimer = setInterval(checkUpdates, 6 * 60 * 60 * 1000);
+  updateTimer.unref();
   watchDevelopmentFiles();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
@@ -806,12 +837,14 @@ app.on('window-all-closed', () => {
 
 app.on('before-quit', event => {
   quitting = true;
+  clearTimeout(initialUpdateTimer);
+  clearInterval(updateTimer);
   clearTimeout(backupTimer);
-  if (fileJobs.busy) {
+  if (fileJobs.busy || updates?.controller) {
     event.preventDefault();
     if (!waitingToQuit) {
       waitingToQuit = true;
-      fileJobs.stop().finally(() => { waitingToQuit = false; app.quit(); });
+      Promise.all([fileJobs.stop(), updates?.stop()]).finally(() => { waitingToQuit = false; app.quit(); });
     }
     return;
   }
