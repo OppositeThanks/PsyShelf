@@ -12,7 +12,7 @@ contextBridge.exposeInMainWorld('psyLibrary', {
   deleteResource: id => ipcRenderer.invoke('resources:delete', id),
   openResource: id => ipcRenderer.invoke('resources:open', id),
   previewResource: id => ipcRenderer.invoke('resources:preview', id),
-  openPreview: id => ipcRenderer.invoke('resources:open-preview', id),
+  openPreview: (id, page = null) => ipcRenderer.invoke('resources:open-preview', id, page),
   shareResource: (id, includeFile) => ipcRenderer.invoke('resources:share', id, includeFile),
   analyzeResource: id => ipcRenderer.invoke('agent:analyze', id),
   reviewCorrection: (id, request) => ipcRenderer.invoke('agent:review-correction', id, request),

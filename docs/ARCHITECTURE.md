@@ -62,3 +62,7 @@ to older databases without replacing their records. Main-process normalization
 validates year and rating and preserves untouched fields during metadata corrections
 or AI analysis. Direct editing is available without Ollama; exports and backups
 retain these fields.
+
+## Source-grounded answers
+
+`source-evidence.cjs` extracts local PDF pages using PDF.js and text passages, ranks lexical matches, and validates structured model references. `evidence-search.cjs` runs retrieval in a bounded worker with a 90-second timeout; it does not block the Electron event loop or persist document text. `agent:chat` passes at most eight excerpts to local Ollama and rejects answers with missing or unknown source IDs. The renderer builds source cards with textContent and keeps excerpts and generated answers outside interface translation. Page numbers originate from PDF extraction, never from model output. PDF preview navigation uses the physical page number in the local viewer URL. Catalog-only evidence is labeled explicitly.

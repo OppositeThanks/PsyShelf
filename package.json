@@ -43,5 +43,8 @@
       "shortcutName": "PsyShelf",
       "uninstallDisplayName": "PsyShelf"
     }
+  },
+  "dependencies": {
+    "pdfjs-dist": "6.3.289"
   }
 }

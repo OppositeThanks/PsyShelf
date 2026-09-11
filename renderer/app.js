@@ -522,23 +522,81 @@ $$('.tab').forEach(tab => tab.addEventListener('click', () => {
   $$('.tab-panel').forEach(panel => panel.classList.toggle('active', panel.id === `${tab.dataset.tab}Panel`));
 }));
 
+function appendSourceAnswer(answer, messages) {
+  const bubble = document.createElement('div');
+  bubble.className = 'message agent source-answer';
+  bubble.dataset.chatUi = '';
+  const notice = document.createElement('p');
+  notice.textContent = {
+    'grounded-ai': 'Answer based on these excerpts. Check the sources before relying on it.',
+    'source-search': 'Local AI is unavailable. These are matching excerpts, not an AI answer.',
+    'insufficient-evidence': 'The model could not provide a supported answer. Review these excerpts.',
+    'no-evidence': 'No supporting text found. Try specific terms or add a readable PDF or text file.'
+  }[answer.mode] || 'Source search results';
+  bubble.append(notice);
+  const cards = new Map();
+  for (const claim of answer.claims || []) {
+    const paragraph = document.createElement('p');
+    const text = document.createElement('span'); text.setAttribute('translate', 'no'); text.textContent = claim.text;
+    paragraph.append(text);
+    for (const id of claim.sourceIds) {
+      const link = document.createElement('button'); link.className = 'citation-link'; link.type = 'button';
+      link.textContent = '[' + id + ']'; link.setAttribute('aria-label', 'Show supporting excerpt');
+      link.addEventListener('click', () => { const card = cards.get(id); if (card) { card.open = true; card.scrollIntoView({ block: 'nearest' }); card.querySelector('summary').focus(); } });
+      paragraph.append(link);
+    }
+    bubble.append(paragraph);
+  }
+  for (const source of answer.sources || []) {
+    const card = document.createElement('details'); card.className = 'source-card';
+    const summary = document.createElement('summary');
+    const title = document.createElement('span'); title.setAttribute('translate', 'no'); title.textContent = '[' + source.id + '] ' + source.title;
+    const location = document.createElement('span'); location.className = 'source-location';
+    location.textContent = source.kind === 'catalog' ? 'Catalog description only' : source.page ? 'PDF page ' + source.page : 'Text passage (no page number)';
+    summary.append(title, location);
+    const excerpt = document.createElement('blockquote'); excerpt.setAttribute('translate', 'no'); excerpt.textContent = source.excerpt;
+    const open = document.createElement('button'); open.type = 'button'; open.className = 'button compact';
+    open.textContent = source.kind === 'catalog' ? 'Show library entry' : source.page ? 'Open source page' : 'Open source';
+    open.addEventListener('click', async () => {
+      try {
+        if (source.kind === 'catalog') { state.selectedId = source.resourceId; render(); $('.tab[data-tab="details"]').click(); }
+        else await api.openPreview(source.resourceId, source.page);
+      } catch (error) { toast(errorMessage(error), true); }
+    });
+    card.append(summary, excerpt, open); cards.set(source.id, card); bubble.append(card);
+  }
+  if (answer.warnings?.length) {
+    const warnings = document.createElement('details');
+    const summary = document.createElement('summary'); summary.textContent = 'Search limitations'; warnings.append(summary);
+    for (const warning of answer.warnings) {
+      const paragraph = document.createElement('p'); const title = document.createElement('span');
+      title.setAttribute('translate', 'no'); title.textContent = warning.title ? warning.title + ': ' : '';
+      const text = document.createElement('span'); text.textContent = warning.message; paragraph.append(title, text); warnings.append(paragraph);
+    }
+    bubble.append(warnings);
+  }
+  messages.append(bubble);
+}
+
 $('#chatForm').addEventListener('submit', async event => {
   event.preventDefault();
   const input = $('#chatInput');
   const message = input.value.trim();
-  if (!message) return;
+  const send = $('#chatForm [type="submit"]');
+  if (!message || send.disabled) return;
+  send.disabled = true;
   const messages = $('#chatMessages');
-  messages.insertAdjacentHTML('beforeend', `<div class="message user">${escapeHtml(message)}</div><div class="message agent loading">Thinking on your computer…</div>`);
+  messages.insertAdjacentHTML('beforeend', '<div class="message user" translate="no">' + escapeHtml(message) + '</div>');
+  const loading = document.createElement('div'); loading.className = 'message agent loading'; loading.textContent = 'Searching local sources and preparing an answer…'; messages.append(loading);
   input.value = '';
   messages.scrollTop = messages.scrollHeight;
   try {
     const answer = await api.chat(message);
-    messages.querySelector('.loading')?.remove();
-    messages.insertAdjacentHTML('beforeend', `<div class="message agent">${escapeHtml(answer.answer)}</div>`);
+    loading.remove();
+    appendSourceAnswer(answer, messages);
   } catch (error) {
-    messages.querySelector('.loading')?.remove();
-    messages.insertAdjacentHTML('beforeend', `<div class="message agent">${escapeHtml(errorMessage(error))}</div>`);
-  }
+    loading.classList.remove('loading'); loading.dataset.chatUi = ''; loading.textContent = errorMessage(error);
+  } finally { send.disabled = false; }
   messages.scrollTop = messages.scrollHeight;
 });
 

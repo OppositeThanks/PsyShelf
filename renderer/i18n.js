@@ -1,6 +1,31 @@
 /* Interface localization shared with native dialogs. Built-in labels translate for display; stored metadata, file contents and AI replies remain unchanged. */
 (() => {
   const messages = [
+["Answer based on these excerpts. Check the sources before relying on it.","Réponse fondée sur ces extraits. Vérifiez les sources avant de vous y fier.","Respuesta basada en estos fragmentos. Comprueba las fuentes antes de confiar en ella."],
+["Local AI is unavailable. These are matching excerpts, not an AI answer.","L’IA locale est indisponible. Voici des extraits correspondants, pas une réponse de l’IA.","La IA local no está disponible. Estos son fragmentos coincidentes, no una respuesta de IA."],
+["The model could not provide a supported answer. Review these excerpts.","Le modèle n’a pas fourni de réponse étayée. Consultez ces extraits.","El modelo no pudo dar una respuesta respaldada. Revisa estos fragmentos."],
+["No supporting text found. Try specific terms or add a readable PDF or text file.","Aucun texte pertinent trouvé. Précisez les termes ou ajoutez un PDF lisible ou un fichier texte.","No se ha encontrado texto de apoyo. Usa términos específicos o añade un PDF legible o archivo de texto."],
+["Source search results","Résultats de recherche dans les sources","Resultados de búsqueda en las fuentes"],
+["Show supporting excerpt","Afficher l’extrait justificatif","Mostrar fragmento de apoyo"],
+["Catalog description only","Description du catalogue uniquement","Solo descripción del catálogo"],
+["Text passage (no page number)","Extrait de texte (sans numéro de page)","Fragmento de texto (sin número de página)"],
+["Show library entry","Afficher la fiche","Mostrar entrada de la biblioteca"],
+["Open source page","Ouvrir la page source","Abrir página de origen"],
+["Open source","Ouvrir la source","Abrir fuente"],
+["Search limitations","Limites de recherche","Limitaciones de búsqueda"],
+["Searching local sources and preparing an answer…","Recherche dans les sources locales et préparation de la réponse…","Buscando en fuentes locales y preparando una respuesta…"],
+["File too large or unavailable.","Fichier trop volumineux ou indisponible.","Archivo demasiado grande o no disponible."],
+["Document search was limited.","La recherche dans le document a été limitée.","La búsqueda en el documento se ha limitado."],
+["Some PDF pages have no readable text. Scans need OCR.","Certaines pages PDF n’ont pas de texte lisible. Les scans nécessitent une reconnaissance de texte.","Algunas páginas PDF no tienen texto legible. Los escaneos necesitan reconocimiento de texto."],
+["This file format is not searched yet.","Ce format de fichier n’est pas encore pris en charge pour la recherche.","Este formato aún no se puede buscar."],
+["Only the first 30 candidate resources were searched. Narrow your question if needed.","Seules les 30 premières ressources candidates ont été consultées. Précisez votre question si nécessaire.","Solo se buscaron los primeros 30 recursos candidatos. Precisa tu pregunta si es necesario."],
+["File unreadable, missing, or password-protected.","Fichier illisible, manquant ou protégé par mot de passe.","Archivo ilegible, ausente o protegido por contraseña."],
+["Document search failed. Try a smaller library or another question.","La recherche a échoué. Essayez une bibliothèque plus petite ou une autre question.","La búsqueda falló. Prueba una biblioteca más pequeña u otra pregunta."],
+["Document search timed out. Narrow your question or use smaller files.","La recherche a dépassé le délai. Précisez la question ou utilisez des fichiers plus petits.","La búsqueda agotó el tiempo. Precisa la pregunta o usa archivos más pequeños."],
+["Document search stopped. Please try again.","La recherche s’est arrêtée. Réessayez.","La búsqueda se detuvo. Vuelve a intentarlo."],
+["Enter a question of up to 4,000 characters.","Saisissez une question de 4 000 caractères maximum.","Escribe una pregunta de hasta 4.000 caracteres."],
+["An answer is already being prepared.","Une réponse est déjà en préparation.","Ya se está preparando una respuesta."],
+["Invalid source page.","Page source invalide.","Página de origen no válida."],
 ["Series","Séries","Series"],
 ["Another file operation is running. Wait for it or cancel it first.","Une opération est en cours. Attendez ou annulez-la.","Hay otra operación en curso. Espera o cancélala."],
 ["The backup database is damaged.","La base sauvegardée est endommagée.","La base de la copia está dañada."],
@@ -296,6 +321,9 @@
 
   const dictionary = new Map(messages.map(([key, fr, es]) => [key, { French: fr, Spanish: es }]));
   const patterns = [
+    [/^PDF page (\d+)$/, (m,l) => l === 'French' ? 'Page PDF ' + m[1] : 'Página PDF ' + m[1]],
+    [/^PDF page (\d+)\. Page numbers count from the start of the file\.$/, (m,l) => l === 'French' ? 'Page PDF ' + m[1] + '. Les pages sont comptées depuis le début du fichier.' : 'Página PDF ' + m[1] + '. Las páginas se cuentan desde el inicio del archivo.'],
+
     [/^(Not a regular file|Expected a regular file|The source file changed during copying): (.*)$/, (m,l) => ({French:{'Not a regular file':'Fichier non standard','Expected a regular file':'Fichier standard attendu','The source file changed during copying':'Le fichier source a changé pendant la copie'},Spanish:{'Not a regular file':'Archivo no regular','Expected a regular file':'Se esperaba un archivo regular','The source file changed during copying':'El archivo de origen cambió durante la copia'}}[l][m[1]] + ': ' + m[2])],
     [/^Restore failed; the previous library was recovered\. (.*)$/, (m,l) => (l === 'French' ? 'Échec de restauration ; la bibliothèque précédente a été récupérée. ' : 'Error de restauración; se ha recuperado la biblioteca anterior. ') + translate(m[1],l)],
     [/^Invalid resource (.*) in backup\.$/, (m,l) => l === 'French' ? 'Champ de ressource invalide dans la sauvegarde : ' + m[1] : 'Campo de recurso no válido en la copia: ' + m[1]],
@@ -347,7 +375,7 @@
     const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
     let node;
     while ((node = walker.nextNode())) {
-      if (!node.parentElement || node.parentElement.closest(excluded) || node.parentElement.closest('#chatMessages .message:not(:first-child):not(.loading)')) continue;
+      if (!node.parentElement || node.parentElement.closest(excluded) || (node.parentElement.closest('#chatMessages .message:not(:first-child):not(.loading)') && !node.parentElement.closest('[data-chat-ui]'))) continue;
       const previous = originals.get(node);
       const source = previous && node.nodeValue === previous.rendered ? previous.source : node.nodeValue;
       const rendered = translate(source);

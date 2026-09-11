@@ -216,3 +216,11 @@ dialog::backdrop { background: rgba(25,38,33,.45); backdrop-filter: blur(4px); }
   .topbar, .library-view { padding-left: 20px; padding-right: 20px; }
   .detail-content { padding: 17px; }
 }
+
+.source-answer { max-width: 100%; min-width: 0; overflow-wrap: anywhere; white-space: normal; }
+.source-answer p { white-space: pre-wrap; }
+.source-card { border-top: 1px solid var(--line); margin-top: 10px; padding-top: 8px; }
+.source-card summary { cursor: pointer; }
+.source-location { display: block; color: var(--muted); font-size: 10px; }
+.source-card blockquote { margin: 8px 0; padding-left: 9px; border-left: 2px solid var(--green); white-space: pre-wrap; max-height: 180px; overflow: auto; }
+.citation-link { background: none; border: 0; color: var(--green); text-decoration: underline; cursor: pointer; padding: 2px 4px; }

@@ -35,7 +35,11 @@ window.psyPreview.getData().then(data => {
       status.hidden = false;
       status.textContent = 'Some websites block embedded previews. If the page is blank or sign-in is required, choose Open in browser.';
     }
-    element.src = data.kind === 'pdf' ? data.fileUrl : data.url;
+    element.src = data.kind === 'pdf' ? data.fileUrl + (data.page ? '#page=' + data.page : '') : data.url;
+    if (data.kind === 'pdf' && data.page) {
+      status.hidden = false;
+      status.textContent = 'PDF page ' + data.page + '. Page numbers count from the start of the file.';
+    }
   } else {
     status.hidden = false;
     status.textContent = data.kind === 'missing' ? 'The file is missing or this entry has no attached file to preview.' : `This format cannot be previewed here. ${data.helper?.reason || 'Try opening it with Windows.'}`;
