@@ -8,6 +8,15 @@ const crypto = require('node:crypto');
 const seedData = require('../src/seed-data.cjs');
 const backups = require('../src/backup.cjs');
 const removal = require('./uninstall.cjs');
+const { translate } = require('../renderer/i18n.js');
+const localizedDialog = Object.fromEntries(['showOpenDialog', 'showMessageBox'].map(method => [method, (window, options) => {
+  const t = text => translate(text, settings?.language || 'English');
+  const translated = { ...options };
+  for (const key of ['title', 'message', 'detail', 'buttonLabel']) if (typeof options[key] === 'string') translated[key] = t(options[key]);
+  if (options.buttons) translated.buttons = options.buttons.map(t);
+  if (options.filters) translated.filters = options.filters.map(filter => ({ ...filter, name: t(filter.name) }));
+  return dialog[method](window, translated);
+}]));
 const { FileJobs, workerTask } = require('../src/file-jobs.cjs');
 const asyncFs = require('node:fs/promises');
 let backupPending = false;
@@ -365,7 +374,7 @@ async function restoreBackup(savedFolder) {
         if (!saved) throw new Error('That backup is no longer in the history. Refresh settings or browse for it.');
         folder = saved.folder;
       } else {
-        const selected = await dialog.showOpenDialog(mainWindow, {
+        const selected = await localizedDialog.showOpenDialog(mainWindow, {
           title: 'Select a backup folder containing psyshelf.sqlite',
           defaultPath: settings.backupFolder ? path.join(settings.backupFolder, 'PsyShelf Backup') : app.getPath('userData'),
           properties: ['openDirectory']
@@ -375,7 +384,7 @@ async function restoreBackup(savedFolder) {
       }
       const summary = await job.task('inspect', { folder });
       job.phase('Waiting for confirmation');
-      const answer = await dialog.showMessageBox(mainWindow, {
+      const answer = await localizedDialog.showMessageBox(mainWindow, {
         type: 'warning', title: 'Restore PsyShelf backup', message: 'Replace the current library with this backup?',
         detail: summary.resourceCount + ' resources, ' + summary.managedCount + ' managed files, ' + summary.referenceCount + ' referenced files.\n\n' +
           'Backup: ' + folder + '\nSaved: ' + (summary.updatedAt || 'Unknown (older backup)') + '\n\n' +
@@ -504,7 +513,7 @@ function registerHandlers() {
   handle('resources:list', (_event, filters) => listResources(filters));
 
   handle('resources:add-files', async (_event, options = {}) => {
-    const result = await dialog.showOpenDialog(mainWindow, {
+    const result = await localizedDialog.showOpenDialog(mainWindow, {
       title: 'Add resources to PsyShelf', properties: ['openFile', 'multiSelections'],
       filters: [{ name: 'All files', extensions: ['*'] }]
     });
@@ -606,7 +615,7 @@ function registerHandlers() {
   handle('resources:share', async (_event, id, includeFile) => {
     const resource = getResource(id);
     if (!resource) throw new Error('Resource not found.');
-    const selection = await dialog.showOpenDialog(mainWindow, {
+    const selection = await localizedDialog.showOpenDialog(mainWindow, {
       title: 'Choose a folder for the shared entry',
       properties: ['openDirectory', 'createDirectory']
     });
@@ -724,7 +733,7 @@ function registerHandlers() {
   });
 
   handle('settings:choose-backup', async () => {
-    const result = await dialog.showOpenDialog(mainWindow, {
+    const result = await localizedDialog.showOpenDialog(mainWindow, {
       title: 'Choose your Google Drive or cloud-synced folder',
       properties: ['openDirectory', 'createDirectory']
     });
@@ -739,7 +748,7 @@ function registerHandlers() {
   handle('system:uninstall', async () => {
     if (restoreDialogOpen) throw new Error('Finish or cancel restoration before uninstalling.');
     try {
-      return await removal.uninstall({ app, dialog, window: mainWindow, stop: async () => {
+      return await removal.uninstall({ app, dialog: localizedDialog, window: mainWindow, stop: async () => {
         quitting = true;
         restoreLocked = true;
         clearTimeout(backupTimer);

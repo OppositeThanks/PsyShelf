@@ -193,3 +193,8 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for data boundaries and the mob
 - Simplified Windows setup to install for the current user, create shortcuts, and launch PsyShelf automatically. The installer can be deleted after setup.
 - Added a stable direct `.exe` download filename and release installation instructions. The download becomes available when a GitHub Release is published.
 - Established the repository workflow: every completed modification includes a README update, appropriate checks, and a commit pushed to GitHub.
+
+### 2026-09-11
+
+- Translate built-in category and resource-language labels, backup history/restoration, background progress, and uninstall confirmations into French and Spanish. Saved metadata and personal content stay unchanged.
+- Future interface changes must include all supported translations, including native dialogs and accessibility text.

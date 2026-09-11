@@ -7,3 +7,5 @@ For every requested modification, update README.md in the same commit to describ
 The user has authorized committing and pushing all future changes made for their requests in this workspace to the GitHub repository at https://github.com/OppositeThanks/PsyShelf.git.
 
 After completing a requested modification, run appropriate checks, commit the changes for that request, and push them to GitHub without asking for permission again. Preserve unrelated unfinished local changes. Follow any more specific branch instructions from the user; otherwise use the current branch. Report the pushed commit and any validation limitations. If pushing fails, explain the blocker clearly rather than claiming the repository is updated.
+
+All new or changed user-facing text must support English, French, and Spanish, including dynamic status messages, errors, accessibility labels, and native dialogs. Add translations with each change and verify language switching. Translate built-in category/language labels for display only; preserve stored values, custom metadata, filenames, notes, and user content.

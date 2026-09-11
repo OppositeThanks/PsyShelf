@@ -424,6 +424,7 @@ async function refreshSettings() {
     $('#settingsAgentStatus').textContent = available ? `${state.agent.models.length} local model${state.agent.models.length === 1 ? '' : 's'} available` : 'Ollama is not running yet';
     $('#modelInput').value = state.settings.model || 'qwen3:4b';
     $('#settingsModelCommand').textContent = `ollama pull ${$('#modelInput').value}`;
+    $('#settingsBackupPath').setAttribute('translate', state.settings.backupFolder ? 'no' : 'yes');
     $('#settingsBackupPath').textContent = state.settings.backupFolder || 'Not configured';
     $('#backupLabel').textContent = state.settings.backupFolder ? 'Automatic cloud-folder backup on' : 'Cloud backup not set';
   } catch (error) {

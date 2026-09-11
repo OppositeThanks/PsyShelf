@@ -1,6 +1,102 @@
-/* Interface-only localization. Catalog values, file contents and AI replies are never translated. */
+/* Interface localization shared with native dialogs. Built-in labels translate for display; stored metadata, file contents and AI replies remain unchanged. */
 (() => {
   const messages = [
+["Series","Séries","Series"],
+["Another file operation is running. Wait for it or cancel it first.","Une opération est en cours. Attendez ou annulez-la.","Hay otra operación en curso. Espera o cancélala."],
+["The backup database is damaged.","La base sauvegardée est endommagée.","La base de la copia está dañada."],
+["This backup uses an unsupported database schema.","Le schéma de cette sauvegarde n’est pas pris en charge.","El esquema de esta copia no es compatible."],
+["This is not a compatible PsyShelf backup.","Cette sauvegarde n’est pas compatible avec PsyShelf.","Esta copia no es compatible con PsyShelf."],
+["The backup has broken resource relationships.","Les liens entre ressources sont endommagés.","Las relaciones entre recursos están dañadas."],
+["Invalid resource metadata.","Métadonnées de ressource invalides.","Metadatos de recurso no válidos."],
+["Invalid resource details.","Détails de ressource invalides.","Detalles de recurso no válidos."],
+["A managed file has no path.","Un fichier géré n’a pas de chemin.","Un archivo gestionado no tiene ruta."],
+["A managed file has an invalid filename.","Un fichier géré a un nom invalide.","Un archivo gestionado tiene un nombre no válido."],
+["The backup contains ambiguous managed filenames.","La sauvegarde contient des noms de fichiers ambigus.","La copia contiene nombres de archivo ambiguos."],
+["This backup format needs a newer PsyShelf version.","Ce format nécessite une version plus récente de PsyShelf.","Este formato requiere una versión más reciente de PsyShelf."],
+["Choose a backup folder outside the managed library.","Choisissez un dossier hors de la bibliothèque gérée.","Elige una carpeta fuera de la biblioteca gestionada."],
+["Backup folders cannot be symbolic links.","Les dossiers de sauvegarde ne peuvent pas être des liens symboliques.","Las carpetas de copia no pueden ser enlaces simbólicos."],
+["Cannot copy a linked or invalid folder.","Impossible de copier un dossier lié ou invalide.","No se puede copiar una carpeta enlazada o no válida."],
+["The destination stopped accepting data.","La destination n’accepte plus de données.","El destino ha dejado de aceptar datos."],
+["An earlier restore needs recovery before continuing.","Une restauration précédente doit être récupérée avant de continuer.","Es necesario recuperar una restauración anterior antes de continuar."],
+["Invalid temporary file operation folder.","Dossier temporaire invalide.","Carpeta temporal no válida."],
+["Temporary folder escaped its parent.","Le dossier temporaire est hors du dossier parent.","La carpeta temporal está fuera de su carpeta superior."],
+["Unknown file operation.","Opération inconnue.","Operación desconocida."],
+["Invalid staging cleanup path.","Chemin de nettoyage temporaire invalide.","Ruta de limpieza temporal no válida."],
+["Staging folder escaped user data.","Le dossier temporaire est hors des données utilisateur.","La carpeta temporal está fuera de los datos del usuario."],
+["Invalid restore recovery record.","Enregistrement de récupération invalide.","Registro de recuperación no válido."],
+["Invalid restore staging folder.","Dossier temporaire de restauration invalide.","Carpeta temporal de restauración no válida."],
+["Creating database snapshot","Création de l’instantané de la base","Creando instantánea de la base"],
+["Creating restore snapshot","Création de l’instantané de restauration","Creando instantánea de restauración"],
+["Add resources to PsyShelf","Ajouter des ressources à PsyShelf","Añadir recursos a PsyShelf"],
+["All files","Tous les fichiers","Todos los archivos"],
+["Choose a folder for the shared entry","Choisissez un dossier pour le partage","Elige una carpeta para compartir"],
+["Choose your Google Drive or cloud-synced folder","Choisissez votre dossier Google Drive ou synchronisé","Elige tu carpeta de Google Drive o sincronizada"],
+["A restore dialog is already open.","Une fenêtre de restauration est déjà ouverte.","Ya hay un diálogo de restauración abierto."],
+["That backup is no longer in the history. Refresh settings or browse for it.","Cette sauvegarde n’est plus dans l’historique. Actualisez les paramètres ou recherchez-la.","Esta copia ya no está en el historial. Actualiza los ajustes o búscala."],
+["Another library change is still running. Let it finish, then restore again.","Une modification est en cours. Attendez sa fin avant de restaurer.","Hay otro cambio en curso. Espera a que termine y vuelve a restaurar."],
+    ["Book","Livre","Libro"],
+    ["Movie","Film","Película"],
+    ["Music","Musique","Música"],
+    ["Art","Art","Arte"],
+    ["Draft","Brouillon","Borrador"],
+    ["Book / document","Livre / document","Libro / documento"],
+    ["Video","Vidéo","Vídeo"],
+    ["Audio / music","Audio / musique","Audio / música"],
+    ["Art / image","Art / image","Arte / imagen"],
+    ["Presentation","Présentation","Presentación"],
+    ["Spreadsheet","Feuille de calcul","Hoja de cálculo"],
+    ["Web resource","Ressource web","Recurso web"],
+    ["Other","Autre","Otro"],
+    ["English","Anglais","Inglés"],
+    ["French","Français","Francés"],
+    ["Spanish","Espagnol","Español"],
+    ["No spoken language","Sans paroles","Sin idioma hablado"],
+    ["Uninstall PsyShelf","Désinstaller PsyShelf","Desinstalar PsyShelf"],
+    ["Uninstall PsyShelf…","Désinstaller PsyShelf…","Desinstalar PsyShelf…"],
+    ["Remove the app. Choose whether to keep your library or delete local data. Available after installing the Windows app.","Supprimez l’application. Choisissez de conserver votre bibliothèque ou de supprimer les données locales. Disponible après installation sous Windows.","Elimina la aplicación. Elige si conservar tu biblioteca o eliminar los datos locales. Disponible tras instalar la aplicación en Windows."],
+    ["Backups are kept in dated folders. Restore replaces your library and saves a safety copy first. Referenced original files are not included.","Les sauvegardes sont conservées dans des dossiers datés. La restauration remplace votre bibliothèque et crée d’abord une copie de sécurité. Les fichiers originaux référencés ne sont pas inclus.","Las copias se guardan en carpetas con fecha. La restauración reemplaza tu biblioteca y crea antes una copia de seguridad. Los archivos originales referenciados no se incluyen."],
+    ["Checking backup status…","Vérification des sauvegardes…","Comprobando las copias de seguridad…"],
+    ["Restore backup…","Restaurer une sauvegarde…","Restaurar copia de seguridad…"],
+    ["Backup history & safety copies","Historique et copies de sécurité","Historial y copias de seguridad"],
+    ["Restore a saved copy below, or use Restore backup to browse another folder. Older backups are kept until you remove them.","Restaurez une copie ci-dessous ou utilisez Restaurer une sauvegarde pour choisir un autre dossier. Les anciennes copies sont conservées jusqu’à leur suppression.","Restaura una copia abajo o usa Restaurar copia de seguridad para elegir otra carpeta. Las copias antiguas se conservan hasta que las elimines."],
+    ["No successful backup found in the selected folder.","Aucune sauvegarde réussie dans le dossier sélectionné.","No se ha encontrado una copia correcta en la carpeta seleccionada."],
+    ["Unknown date","Date inconnue","Fecha desconocida"],
+    ["Restore","Restaurer","Restaurar"],
+    ["Background activity","Activité en arrière-plan","Actividad en segundo plano"],
+    ["File operation progress","Progression des fichiers","Progreso de archivos"],
+    ["Dismiss","Fermer","Descartar"],
+    ["You can continue browsing your library.","Vous pouvez continuer à consulter votre bibliothèque.","Puedes seguir consultando tu biblioteca."],
+    ["Finishing safely. Please wait.","Finalisation en cours. Veuillez patienter.","Finalizando de forma segura. Espera, por favor."],
+    ["Backup","Sauvegarde","Copia de seguridad"],
+    ["Automatic backup","Sauvegarde automatique","Copia automática"],
+    ["Restore backup","Restaurer une sauvegarde","Restaurar copia de seguridad"],
+    ["Import files","Importer des fichiers","Importar archivos"],
+    ["Export shared resource","Exporter la ressource partagée","Exportar recurso compartido"],
+    ["Cancelling…","Annulation…","Cancelando…"],
+    ["Preparing…","Préparation…","Preparando…"],
+    ["Finishing…","Finalisation…","Finalizando…"],
+    ["Cancelled","Annulé","Cancelado"],
+    ["Completed","Terminé","Completado"],
+    ["Checking backup","Vérification de la sauvegarde","Comprobando copia de seguridad"],
+    ["Waiting for confirmation","En attente de confirmation","Esperando confirmación"],
+    ["Saving safety copy","Création de la copie de sécurité","Guardando copia de seguridad"],
+    ["Copying files","Copie des fichiers","Copiando archivos"],
+    ["How would you like to uninstall PsyShelf?","Comment souhaitez-vous désinstaller PsyShelf ?","¿Cómo quieres desinstalar PsyShelf?"],
+    ["Uninstall — keep library","Désinstaller — conserver la bibliothèque","Desinstalar — conservar biblioteca"],
+    ["Uninstall — delete local data","Désinstaller — supprimer les données locales","Desinstalar — eliminar datos locales"],
+    ["Keep library: remove the application and shortcuts, but keep your library and settings for reinstallation.","Conserver la bibliothèque : supprimer l’application et les raccourcis, mais conserver la bibliothèque et les paramètres pour une réinstallation.","Conservar biblioteca: elimina la aplicación y los accesos directos, pero conserva tu biblioteca y ajustes para reinstalar."],
+    ["Delete local data: also permanently remove your catalog, notes, managed file copies, settings, caches, and local restore safety copies. Back up anything you want to keep first.","Supprimer les données locales : supprimer aussi définitivement le catalogue, les notes, les copies gérées, les paramètres, les caches et les copies de sécurité locales. Sauvegardez d’abord ce que vous souhaitez conserver.","Eliminar datos locales: elimina también permanentemente el catálogo, notas, copias gestionadas, ajustes, cachés y copias locales de restauración. Guarda antes lo que quieras conservar."],
+    ["Referenced originals and backups outside the app-data folder are not removed. Active file copies will be cancelled safely before uninstall starts.","Les originaux référencés et les sauvegardes hors du dossier de données ne sont pas supprimés. Les copies en cours seront annulées avant la désinstallation.","Los originales referenciados y las copias fuera de la carpeta de datos no se eliminan. Las copias en curso se cancelarán de forma segura antes de desinstalar."],
+    ["Select a backup folder containing psyshelf.sqlite","Choisissez un dossier contenant psyshelf.sqlite","Selecciona una carpeta que contenga psyshelf.sqlite"],
+    ["Restore PsyShelf backup","Restaurer une sauvegarde PsyShelf","Restaurar copia de PsyShelf"],
+    ["Replace the current library with this backup?","Remplacer la bibliothèque actuelle par cette sauvegarde ?","¿Reemplazar la biblioteca actual con esta copia?"],
+    ["Restore library","Restaurer la bibliothèque","Restaurar biblioteca"],
+    ["Unknown (older backup)","Inconnu (ancienne sauvegarde)","Desconocido (copia antigua)"],
+    ["This replaces the current catalog and managed files, including changes made since this backup. A local safety backup will be saved first. Referenced originals are not included and must still exist at their original paths. Settings are kept. Open forms will be closed. You can browse while files are prepared, but library changes are paused until restoration finishes.","Cette opération remplace le catalogue et les fichiers gérés, y compris les modifications depuis cette sauvegarde. Une copie de sécurité locale sera créée d’abord. Les originaux référencés ne sont pas inclus et doivent rester à leur emplacement initial. Les paramètres sont conservés. Les formulaires seront fermés. Vous pouvez consulter la bibliothèque pendant la préparation, mais les modifications sont suspendues jusqu’à la fin.","Esto reemplaza el catálogo y los archivos gestionados, incluidos los cambios posteriores a esta copia. Primero se guardará una copia local de seguridad. Los originales referenciados no se incluyen y deben seguir en sus rutas originales. Se conservan los ajustes. Se cerrarán los formularios. Puedes consultar la biblioteca durante la preparación, pero los cambios se pausan hasta terminar."],
+    ["Library changes are paused while a backup is being restored.","Les modifications sont suspendues pendant la restauration.","Los cambios se pausan durante la restauración."],
+    ["Finish or cancel restoration before uninstalling.","Terminez ou annulez la restauration avant de désinstaller.","Termina o cancela la restauración antes de desinstalar."],
+    ["Wait for the current library change to finish, then uninstall.","Attendez la fin de la modification en cours avant de désinstaller.","Espera a que termine el cambio actual y después desinstala."],
+    ["Uninstall is available in the installed Windows app.","La désinstallation est disponible dans l’application Windows installée.","La desinstalación está disponible en la aplicación instalada en Windows."],
     ['No description yet.', 'Pas encore de description.', 'Todavía no hay descripción.'],
     ['Not set', 'Non renseigné', 'Sin especificar'],
     ['No notes yet.', 'Pas encore de notes.', 'Todavía no hay notas.'],
@@ -200,6 +296,16 @@
 
   const dictionary = new Map(messages.map(([key, fr, es]) => [key, { French: fr, Spanish: es }]));
   const patterns = [
+    [/^(Not a regular file|Expected a regular file|The source file changed during copying): (.*)$/, (m,l) => ({French:{'Not a regular file':'Fichier non standard','Expected a regular file':'Fichier standard attendu','The source file changed during copying':'Le fichier source a changé pendant la copie'},Spanish:{'Not a regular file':'Archivo no regular','Expected a regular file':'Se esperaba un archivo regular','The source file changed during copying':'El archivo de origen cambió durante la copia'}}[l][m[1]] + ': ' + m[2])],
+    [/^Restore failed; the previous library was recovered\. (.*)$/, (m,l) => (l === 'French' ? 'Échec de restauration ; la bibliothèque précédente a été récupérée. ' : 'Error de restauración; se ha recuperado la biblioteca anterior. ') + translate(m[1],l)],
+    [/^Invalid resource (.*) in backup\.$/, (m,l) => l === 'French' ? 'Champ de ressource invalide dans la sauvegarde : ' + m[1] : 'Campo de recurso no válido en la copia: ' + m[1]],
+
+    [/^(Backup|Automatic backup|Restore backup|Import files|Export shared resource): (.+)$/, (m,l) => translate(m[1],l) + ': ' + translate(m[2],l)],
+    [/^File (\d+) of (\d+) · (.*)$/, (m,l) => l === 'French' ? `Fichier ${m[1]} sur ${m[2]} · ${m[3]}` : `Archivo ${m[1]} de ${m[2]} · ${m[3]}`],
+    [/^(Last successful backup|Backup failed|Backup status unavailable|Library restored. Safety backup|Safety copy —|Backup|Saved):? (.*)$/, (m,l) => ({French:{'Last successful backup':'Dernière sauvegarde réussie','Backup failed':'Échec de sauvegarde','Backup status unavailable':'État indisponible','Library restored. Safety backup':'Bibliothèque restaurée. Copie de sécurité','Safety copy —':'Copie de sécurité —',Backup:'Sauvegarde',Saved:'Enregistré'},Spanish:{'Last successful backup':'Última copia correcta','Backup failed':'Error de copia','Backup status unavailable':'Estado no disponible','Library restored. Safety backup':'Biblioteca restaurada. Copia de seguridad','Safety copy —':'Copia de seguridad —',Backup:'Copia',Saved:'Guardado'}}[l][m[1]] + ': ' + translate(m[2],l))],
+    [/^(\d+) resources, (\d+) managed files, (\d+) referenced files\.$/, (m,l) => l === 'French' ? `${m[1]} ressources, ${m[2]} fichiers gérés, ${m[3]} fichiers référencés.` : `${m[1]} recursos, ${m[2]} archivos gestionados, ${m[3]} archivos referenciados.`],
+    [/^Restore (.+)$/, (m,l) => translate('Restore',l) + ' ' + translate(m[1],l)],
+
     [/^Search: “([\s\S]*)”$/, (m,l) => l === 'French' ? `Recherche : « ${m[1]} »` : `Búsqueda: «${m[1]}»`],
     [/^(.*) · (\d+) logical processors$/, (m,l) => `${m[1]} · ${m[2]} ${l === 'French' ? 'processeurs logiques' : 'procesadores lógicos'}`],
     [/^(.+) GiB total · (.+) GiB available now$/, (m,l) => l === 'French' ? `${m[1]} Gio au total · ${m[2]} Gio disponibles` : `${m[1]} GiB en total · ${m[2]} GiB disponibles`],
@@ -219,9 +325,11 @@
   const originals = new WeakMap();
   const attributes = new WeakMap();
   // These nodes contain user-owned metadata or generated/file content, not interface copy.
-  const excluded = 'script,style,code,pre,textarea,[translate="no"],#interfaceLanguage option,.resource-card h3,.card-author,.card-description,.pill,#categoryFilters,#languageFilters,.detail-hero h2,.detail-hero p,.detail-description:not([data-ui]),.metadata-item strong:not([data-ui]),#resourceDetailsName,#settingsBackupPath';
-  function translate(value) {
+  const excluded = 'script,style,code,pre,textarea,[translate="no"],#interfaceLanguage option,.resource-card h3,.card-author,.card-description,.detail-hero h2,.detail-hero p,.detail-description:not([data-ui]),.metadata-item strong:not([data-ui]),#resourceDetailsName';
+  function translate(value, targetLanguage = language) {
+    const language = targetLanguage;
     if (language === 'English') return value;
+    if (value.includes('\n')) return value.split('\n').map(line => translate(line, language)).join('\n');
     const key = value.trim();
     let replacement = dictionary.get(key)?.[language];
     if (!replacement) for (const [pattern, format] of patterns) {
@@ -229,6 +337,10 @@
       if (match) { replacement = format(match, language); break; }
     }
     return replacement ? value.replace(key, replacement) : value;
+  }
+  if (typeof module !== 'undefined' && module.exports) {
+    module.exports = { translate, messages };
+    return;
   }
   function refresh() {
     observer.disconnect();
