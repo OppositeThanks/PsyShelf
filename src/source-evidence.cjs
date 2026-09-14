@@ -7,7 +7,7 @@ const normalize = text => String(text).normalize('NFD').replace(/\p{M}/gu, '').t
 function termsFor(query) { return [...new Set(normalize(query).match(/[\p{L}\p{N}]{2,}/gu) || [])].filter(word => !stopwords.has(word)).slice(0, 30); }
 function score(text, terms) { const value = normalize(text); return terms.reduce((sum, term) => sum + (value.includes(term) ? 1 : 0), 0); }
 
-async function extractDocument(filename) {
+async function extractDocument(filename, options = {}) {
   const stat = await fs.stat(filename);
   if (!stat.isFile() || stat.size > LIMITS.bytes) return { pages: [], warning: 'File too large or unavailable.' };
   const extension = path.extname(filename).toLowerCase();
@@ -20,18 +20,32 @@ async function extractDocument(filename) {
       const pages = [];
       let characters = 0;
       let empty = 0;
+      let ocrWarning = null;
       for (let number = 1; number <= Math.min(pdf.numPages, LIMITS.pages) && characters < LIMITS.characters; number++) {
+        options.progress?.(number);
         const page = await pdf.getPage(number);
         const content = await page.getTextContent();
-        const raw = content.items.map(item => item.str ? item.str + (item.hasEOL ? '\n' : ' ') : '').join('').trim();
+        let raw = content.items.map(item => item.str ? item.str + (item.hasEOL ? '\n' : ' ') : '').join('').trim();
+        let recognized = false;
+        if (options.ocr && raw.length < 40) {
+          try { const found = await options.ocr.pdfPage(page); if (found) { raw = found; recognized = true; } }
+          catch (error) { ocrWarning = error.message.startsWith('OCR is limited') ? error.message : 'OCR could not read some pages. Try a clearer scan or another OCR language.'; }
+        }
         const text = raw.slice(0, LIMITS.characters - characters);
         characters += text.length;
         if (!text) empty++;
-        pages.push({ page: number, text });
+        pages.push({ page: number, text, ocr: recognized });
         page.cleanup();
       }
-      return { pages, warning: pages.length < pdf.numPages || characters >= LIMITS.characters ? 'Document search was limited.' : empty ? 'Some PDF pages have no readable text. Scans need OCR.' : null };
+      return { pages, warning: ocrWarning || (pages.length < pdf.numPages || characters >= LIMITS.characters ? 'Document search was limited.' : empty ? 'Some PDF pages have no readable text. Scans need OCR.' : null) };
     } finally { await task.destroy(); }
+  }
+  if (['.png', '.jpg', '.jpeg', '.bmp', '.webp'].includes(extension)) {
+    if (!options.ocr) return { pages: [], warning: 'Enable OCR to search text in images.' };
+    try {
+      const text = await options.ocr.image(filename);
+      return { pages: [{ page: null, text: text.slice(0, LIMITS.characters), ocr: true }], warning: text ? null : 'OCR found no readable text.' };
+    } catch (error) { return { pages: [], warning: error.message.startsWith('OCR is limited') ? error.message : 'OCR could not read some pages. Try a clearer scan or another OCR language.' }; }
   }
   if (['.txt', '.md', '.csv', '.json', '.xml', '.html', '.htm'].includes(extension)) {
     const raw = await fs.readFile(filename, 'utf8');

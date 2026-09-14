@@ -1,6 +1,33 @@
 /* Interface localization shared with native dialogs. Built-in labels translate for display; stored metadata, file contents and AI replies remain unchanged. */
 (() => {
   const messages = [
+["Search documents","Rechercher dans les documents","Buscar en documentos"],
+["Search inside documents","Rechercher dans les documents","Buscar dentro de documentos"],
+["Find passages in local PDFs and text files. Enable OCR for scanned PDFs and images. Files stay on your computer.","Trouvez des passages dans les PDF et textes locaux. Activez la reconnaissance de texte pour les scans et images. Les fichiers restent sur votre ordinateur.","Encuentra fragmentos en PDF y textos locales. Activa el reconocimiento de texto para escaneos e imágenes. Los archivos permanecen en tu ordenador."],
+["Search terms","Termes de recherche","Términos de búsqueda"],
+["Search selected resource only","Rechercher uniquement dans la ressource sélectionnée","Buscar solo en el recurso seleccionado"],
+["Read scans and images with OCR","Lire les scans et images par reconnaissance de texte","Leer escaneos e imágenes con reconocimiento de texto"],
+["OCR language","Langue de reconnaissance","Idioma de reconocimiento"],
+["OCR can make mistakes. Check the original page. Up to 20 pages or images use OCR per search; choose a single resource for large libraries.","La reconnaissance peut faire des erreurs. Vérifiez la page originale. Elle traite au maximum 20 pages ou images par recherche ; sélectionnez une seule ressource pour les grandes bibliothèques.","El reconocimiento puede cometer errores. Comprueba la página original. Se procesan hasta 20 páginas o imágenes por búsqueda; selecciona un solo recurso en bibliotecas grandes."],
+["Cancel search","Annuler la recherche","Cancelar búsqueda"],
+["Enter terms to search document contents.","Saisissez des termes pour rechercher dans les documents.","Introduce términos para buscar en el contenido de documentos."],
+["Select a resource in the library first.","Sélectionnez d’abord une ressource dans la bibliothèque.","Selecciona primero un recurso en la biblioteca."],
+["Searching document contents…","Recherche dans les documents…","Buscando en el contenido de documentos…"],
+["Document search cancelled.","Recherche dans les documents annulée.","Búsqueda en documentos cancelada."],
+["No matching passages found.","Aucun passage correspondant trouvé.","No se encontraron fragmentos coincidentes."],
+["Could not open this source. It may have moved or been removed.","Impossible d’ouvrir cette source. Elle a peut-être été déplacée ou supprimée.","No se pudo abrir esta fuente. Puede haberse movido o eliminado."],
+["Recognized with OCR — verify against the original.","Texte reconnu automatiquement — vérifiez l’original.","Texto reconocido automáticamente — comprueba el original."],
+["Unsupported OCR language.","Langue de reconnaissance non prise en charge.","Idioma de reconocimiento no compatible."],
+["OCR is limited to 20 pages or images per search. Select one resource to narrow the search.","La reconnaissance est limitée à 20 pages ou images par recherche. Sélectionnez une ressource pour préciser la recherche.","El reconocimiento está limitado a 20 páginas o imágenes por búsqueda. Selecciona un recurso para acotar la búsqueda."],
+["Image is too large for OCR.","L’image est trop grande pour la reconnaissance.","La imagen es demasiado grande para el reconocimiento."],
+["Showing the first 100 passages. Narrow your search for more specific results.","Affichage des 100 premiers passages. Précisez la recherche pour des résultats plus ciblés.","Se muestran los primeros 100 fragmentos. Precisa la búsqueda para obtener resultados más específicos."],
+["A document search is already running.","Une recherche dans les documents est déjà en cours.","Ya hay una búsqueda en documentos en curso."],
+["Document search timed out. Select one resource or turn off OCR and try again.","La recherche a dépassé le délai. Sélectionnez une ressource ou désactivez la reconnaissance et réessayez.","La búsqueda agotó el tiempo. Selecciona un recurso o desactiva el reconocimiento y vuelve a intentarlo."],
+["OCR could not read some pages. Try a clearer scan or another OCR language.","Certaines pages n’ont pas pu être reconnues. Essayez un scan plus net ou une autre langue.","No se pudieron reconocer algunas páginas. Prueba un escaneo más claro u otro idioma."],
+["Enable OCR to search text in images.","Activez la reconnaissance pour rechercher du texte dans les images.","Activa el reconocimiento para buscar texto en imágenes."],
+["OCR found no readable text.","Aucun texte lisible n’a été reconnu.","No se reconoció texto legible."],
+["Enter search terms of up to 4,000 characters.","Saisissez jusqu’à 4 000 caractères de recherche.","Introduce hasta 4.000 caracteres de búsqueda."],
+["Invalid document search options.","Options de recherche invalides.","Opciones de búsqueda en documentos no válidas."],
 ["Update available","Mise à jour disponible","Actualización disponible"],
 ["Update downloaded","Mise à jour téléchargée","Actualización descargada"],
 ["Application updates","Mises à jour de l’application","Actualizaciones de la aplicación"],
@@ -349,6 +376,9 @@
 
   const dictionary = new Map(messages.map(([key, fr, es]) => [key, { French: fr, Spanish: es }]));
   const patterns = [
+    [/^Searching document (\d+) of (\d+)…$/, (m,l) => l === 'French' ? 'Recherche dans le document ' + m[1] + ' sur ' + m[2] + '…' : 'Buscando en el documento ' + m[1] + ' de ' + m[2] + '…'],
+    [/^Matching passages: (\d+)$/, (m,l) => l === 'French' ? 'Passages correspondants : ' + m[1] : 'Fragmentos coincidentes: ' + m[1]],
+
     [/^PDF page (\d+)$/, (m,l) => l === 'French' ? 'Page PDF ' + m[1] : 'Página PDF ' + m[1]],
     [/^PDF page (\d+)\. Page numbers count from the start of the file\.$/, (m,l) => l === 'French' ? 'Page PDF ' + m[1] + '. Les pages sont comptées depuis le début du fichier.' : 'Página PDF ' + m[1] + '. Las páginas se cuentan desde el inicio del archivo.'],
 

@@ -70,3 +70,7 @@ retain these fields.
 ## Application updates
 
 `app-updates.cjs` queries the fixed public GitHub latest-release endpoint and compares stable numeric versions. It accepts only versioned Windows assets under this repository, streams an explicitly requested download into a unique `.part` file in Downloads, and checks its exact size and SHA-256 before renaming it to EXE. No renderer-supplied URL or path is accepted. The existing installer is never launched automatically. Electron exposes check/download/cancel/reveal operations and broadcasts progress; quit waits for partial-download cleanup. Installed builds check on startup and every six hours unless the persisted preference disables checks. Test data directories isolate downloads and disable automatic network checks.
+
+## Expanded document search
+
+The separate documents:search IPC scans file-backed resources in document-search-worker.cjs. It shares bounded PDF/text extraction with source-evidence.cjs but searches all candidate files, requires all query terms in a passage, and returns up to 100 passages without an LLM. document-ocr.cjs renders low-text PDF pages with PDF.js/canvas and runs Tesseract with bundled local language data; cache writes and remote language downloads are disabled. OCR is optional and labeled. DocumentSearchJobs terminates workers on cancellation, timeout, or app shutdown. No search index or OCR modifications are written to original files.

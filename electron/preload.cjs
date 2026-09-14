@@ -1,6 +1,9 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('psyLibrary', {
+  searchDocuments: (query, options) => ipcRenderer.invoke('documents:search', query, options),
+  cancelDocumentSearch: () => ipcRenderer.invoke('documents:cancel'),
+  onDocumentSearchProgress: callback => ipcRenderer.on('documents:progress', (_event, value) => callback(value)),
   updateStatus: () => ipcRenderer.invoke('updates:status'),
   checkForUpdates: () => ipcRenderer.invoke('updates:check'),
   downloadUpdate: () => ipcRenderer.invoke('updates:download'),

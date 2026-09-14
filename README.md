@@ -117,6 +117,14 @@ Qwen3 is a practical multilingual starting point: the 4B package is approximatel
 
 PsyShelf sends selected catalog information and document excerpts only to the Ollama service running on `127.0.0.1`. It does not require a paid AI API.
 
+## Search inside documents
+
+Click **Search documents** beside the library search bar. Enter words to find matching passages in local PDFs and text files, without requiring Ollama. Open a result to view its source; PDF links jump to the physical page. All terms must appear in the same passage, ignoring case and accents. Catalog descriptions and remote websites are not searched in this panel.
+
+Enable **Read scans and images with OCR** for scanned PDF pages and PNG, JPEG, BMP, or WebP images. Choose English, French, or Spanish. OCR engines and language data are bundled: files and recognized text stay on your computer, with no model download required. OCR runs on PDF pages containing fewer than 40 text characters and labels recognized passages so you can check the original. Choose **Search selected resource only** to focus on the entry selected in your library.
+
+Search runs in a background worker with progress. Cancel search or close the panel to stop it. Unlike the AI retrieval path, this panel scans beyond the first 30 resources. It returns up to 100 matching passages. Each file is limited to 32 MiB, PDF extraction to 600 pages and one million characters, OCR to 20 pages/images per search and four million rendered pixels, and the overall job to ten minutes. Limits and unreadable files appear under **Search limitations**. This does not create a persistent index or modify originals. OCR may miss faint, handwritten, rotated, or complex layouts. Office and e-book formats remain unsupported.
+
 ## In-app update notifications and downloads
 
 Installed Windows x64 builds check GitHub at startup and every six hours while open. A sidebar notice appears when a newer stable installer is available. Turn automatic checks off in **Agent & backup settings → Application updates**; **Check for updates** still works manually. These checks contact GitHub without uploading library content.
@@ -133,7 +141,7 @@ Text files have passage references without invented page numbers. Web links and 
 
 If Ollama is unavailable, matching excerpts are still shown. If the model returns unknown or missing source IDs, its answer is discarded and the excerpts remain available. Valid IDs establish where an excerpt came from, not whether every model interpretation is correct: read the excerpts before relying on an answer.
 
-Current limits: lexical matching (not semantic or cross-language search), up to 30 candidate resources per question, PDFs up to 32 MiB, the first 600 pages and one million extracted characters per document, and eight selected excerpts. Search limitations identify missing, protected, unsupported or partially read files. Scanned PDFs need OCR, which is not included yet. Office/e-book extraction is not included. Files are read again for each question; after editing a source, ask again for updated references. Questions are independent; this does not add persistent chat history or document indexing.
+Current limits: lexical matching (not semantic or cross-language search), up to 30 candidate resources per question, PDFs up to 32 MiB, the first 600 pages and one million extracted characters per document, and eight selected excerpts. Search limitations identify missing, protected, unsupported or partially read files. Scanned PDFs can be searched with OCR in **Search documents**; the AI answer pipeline still uses existing text layers only. Office/e-book extraction is not included. Files are read again for each question; after editing a source, ask again for updated references. Questions are independent; this does not add persistent chat history or document indexing.
 
 ## File previews and helper recommendations
 
@@ -220,3 +228,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for data boundaries and the mob
 
 - Translate built-in category and resource-language labels, backup history/restoration, background progress, and uninstall confirmations into French and Spanish. Saved metadata and personal content stay unchanged.
 - Future interface changes must include all supported translations, including native dialogs and accessibility text.
+
+### 2026-09-14
+
+- Added document-content search with excerpts, PDF page links, local English/French/Spanish OCR for scans and images, progress, scope selection, and cancellation. Original files remain unchanged.

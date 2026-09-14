@@ -9,6 +9,10 @@ const seedData = require('../src/seed-data.cjs');
 const backups = require('../src/backup.cjs');
 const removal = require('./uninstall.cjs');
 const { AppUpdates } = require('../src/app-updates.cjs');
+const { DocumentSearchJobs } = require('../src/document-search-jobs.cjs');
+const documentSearch = new DocumentSearchJobs(progress => {
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('documents:progress', progress);
+});
 let updates;
 let updateTimer;
 let initialUpdateTimer;
@@ -449,6 +453,13 @@ function createWindow() {
 }
 
 function registerHandlers() {
+  ipcMain.handle('documents:search', (_event, query, options = {}) => {
+    if (typeof query !== 'string' || !query.trim() || query.length > 4000) throw new Error('Enter search terms of up to 4,000 characters.');
+    if (!options || typeof options !== 'object' || !['eng', 'fra', 'spa'].includes(options.language) || typeof options.ocr !== 'boolean') throw new Error('Invalid document search options.');
+    const resources = listResources().filter(resource => !options.resourceId || resource.id === options.resourceId);
+    return documentSearch.run(resources, query, { ocr: options.ocr, language: options.language });
+  });
+  ipcMain.handle('documents:cancel', async () => { await documentSearch.cancel(); return { cancelled: true }; });
   ipcMain.handle('updates:status', () => ({ ...updates.snapshot(), automatic: settings.checkUpdates !== false }));
   ipcMain.handle('updates:check', () => updates.check());
   ipcMain.handle('updates:download', () => updates.download());
@@ -840,11 +851,11 @@ app.on('before-quit', event => {
   clearTimeout(initialUpdateTimer);
   clearInterval(updateTimer);
   clearTimeout(backupTimer);
-  if (fileJobs.busy || updates?.controller) {
+  if (fileJobs.busy || updates?.controller || documentSearch.job) {
     event.preventDefault();
     if (!waitingToQuit) {
       waitingToQuit = true;
-      Promise.all([fileJobs.stop(), updates?.stop()]).finally(() => { waitingToQuit = false; app.quit(); });
+      Promise.all([fileJobs.stop(), updates?.stop(), documentSearch.cancel()]).finally(() => { waitingToQuit = false; app.quit(); });
     }
     return;
   }
