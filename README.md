@@ -6,6 +6,10 @@ The first launch includes the usable entries imported from the original `RECURSO
 
 ## What works in this MVP
 
+The library opens immediately; a dismissible welcome message offers optional local AI setup. Select a resource to open its details, use the × button to collapse the panel, or choose **Ask library** in the toolbar. Cards distinguish **Local file**, **Web link**, and **Catalog entry only**; attached files and links have an **Open** action. Catalog-only entries offer **View details** and cannot be previewed until a source is attached.
+
+Use the **Cards / List** selector to switch layouts; your choice is remembered on this computer. List view shows complete descriptions and titles. Filter by **Clinical topic**, **Audience**, and **Theoretical approach**, alongside category or language. These filters use the values you have saved in **Edit details & notes**; starter entries without that metadata remain visible under **All**. **Clear filters** preserves the search text; **Library** resets both filters and search.
+
 Resource details now include publication year, clinical topic, theoretical approach,
 audience, a 1–5 rating, and personal notes. Use **Edit details & notes** in a resource’s
 details panel, or fill these optional fields when adding a link. These fields save
@@ -91,7 +95,7 @@ The installer is currently unsigned, so Windows may show **Unknown publisher**. 
 
 ## Free local AI setup
 
-On first use, the **Agent setup** assistant checks RAM, available memory, CPU,
+Choose **Set up local AI** in the welcome message or open setup from settings. The **Agent setup** assistant checks RAM, available memory, CPU,
 graphics information, and free space on the estimated Ollama model drive locally.
 It recommends Qwen3 0.6B, 1.7B, 4B, or 8B, with conservative memory/CPU limits.
 It explains how to install Ollama, copy the model download command into PowerShell,
@@ -119,11 +123,13 @@ PsyShelf sends selected catalog information and document excerpts only to the Ol
 
 ## Search inside documents
 
-Click **Search documents** beside the library search bar. Enter words to find matching passages in local PDFs and text files, without requiring Ollama. Open a result to view its source; PDF links jump to the physical page. All terms must appear in the same passage, ignoring case and accents. Catalog descriptions and remote websites are not searched in this panel.
+Type in the main search bar to see **Resource matches** followed by **Document passages**, without requiring Ollama. Catalog matches appear immediately; document search starts after a short typing pause and uses the active library filters. Open a passage to view its source; PDF links jump to the physical page. All terms must appear in the same passage, ignoring case and accents. Remote websites are not searched. This is keyword matching, not semantic or cross-language search.
+
+Expand **Document search options** to configure OCR or search only the selected resource, then choose **Apply search options**.
 
 Enable **Read scans and images with OCR** for scanned PDF pages and PNG, JPEG, BMP, or WebP images. Choose English, French, or Spanish. OCR engines and language data are bundled: files and recognized text stay on your computer, with no model download required. OCR runs on PDF pages containing fewer than 40 text characters and labels recognized passages so you can check the original. Choose **Search selected resource only** to focus on the entry selected in your library.
 
-Search runs in a background worker with progress. Cancel search or close the panel to stop it. Unlike the AI retrieval path, this panel scans beyond the first 30 resources. It returns up to 100 matching passages. Each file is limited to 32 MiB, PDF extraction to 600 pages and one million characters, OCR to 20 pages/images per search and four million rendered pixels, and the overall job to ten minutes. Limits and unreadable files appear under **Search limitations**. This does not create a persistent index or modify originals. OCR may miss faint, handwritten, rotated, or complex layouts. Office and e-book formats remain unsupported.
+Search runs in a background worker with progress. **Cancel search** stops it; changing or clearing the main query also cancels the previous search. Unlike the AI retrieval path, this search scans beyond the first 30 resources. It returns up to 100 matching passages. Each file is limited to 32 MiB, PDF extraction to 600 pages and one million characters, OCR to 20 pages/images per search and four million rendered pixels, and the overall job to ten minutes. Limits and unreadable files appear under **Search limitations**. This does not create a persistent index or modify originals. OCR may miss faint, handwritten, rotated, or complex layouts. Office and e-book formats remain unsupported.
 
 ## In-app update notifications and downloads
 
@@ -202,6 +208,15 @@ scripts/    Automated Electron smoke test
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for data boundaries and the mobile-ready direction.
 
 ## Update history
+
+### 2026-09-22 — library usability (source update; installer pending CI)
+
+- Open directly into the library with optional, dismissible AI setup.
+- Collapse resource details and open the library agent from the toolbar.
+- Label attached files, web links, and catalog-only entries; add direct Open actions.
+- Unify catalog and document search with grouped results, shared filters, cancellation, and stale-result protection.
+- Add clinical topic, audience, and approach filters, plus a remembered list view with complete descriptions.
+- Translate the new controls into English, French, and Spanish; add search sequencing and filtering regression tests.
 
 ### 2026-09-10
 

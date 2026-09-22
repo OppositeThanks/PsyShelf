@@ -43,6 +43,9 @@ const state = {
   language: '',
   query: '',
   sort: 'recent',
+  clinicalTopic: '',
+  audience: '',
+  theoreticalApproach: '',
   agent: null,
   settings: null
 };
@@ -93,6 +96,7 @@ function currentResource() {
 function filteredResources() {
   const terms = state.query.toLocaleLowerCase().split(/\s+/).filter(Boolean);
   let result = state.resources.filter(resource => {
+    if (['clinicalTopic', 'audience', 'theoreticalApproach'].some(field => state[field] && resource[field] !== state[field])) return false;
     if (state.category && !resource.categories.includes(state.category)) return false;
     if (state.language && !resource.languages.includes(state.language)) return false;
     if (!terms.length) return true;
@@ -116,6 +120,12 @@ function filterCounts(field) {
 }
 
 function renderFilters() {
+  for (const [id, field] of [['topicFilter', 'clinicalTopic'], ['audienceFilter', 'audience'], ['approachFilter', 'theoreticalApproach']]) {
+    const values = [...new Set(state.resources.map(resource => resource[field]).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+    if (!values.includes(state[field])) state[field] = '';
+    $(`#${id}`).innerHTML = '<option value="">All</option>' + values.map(value => `<option translate="no" value="${escapeHtml(value)}">${escapeHtml(value)}</option>`).join('');
+    $(`#${id}`).value = state[field];
+  }
   $('#libraryCount').textContent = state.resources.length;
   $('#categoryFilters').innerHTML = filterCounts('categories').map(([name, count]) => `
     <button class="filter-button${state.category === name ? ' active' : ''}" data-category="${escapeHtml(name)}"><span>${escapeHtml(name)}</span><span>${count}</span></button>
@@ -136,6 +146,8 @@ function renderFilters() {
 }
 
 function renderCards() {
+  $('.library-view').classList.toggle('search-active', Boolean(state.query));
+  $('#resourceMatchesHeading').hidden = !state.query;
   const resources = filteredResources();
   const label = state.category || state.language || (state.query ? `Search: “${state.query}”` : 'All resources');
   $('#activeFilterLabel').textContent = label;
@@ -146,20 +158,54 @@ function renderCards() {
     const theme = resourceTheme(resource);
     const pills = [...resource.categories.slice(0, 1), ...resource.languages.slice(0, 1)];
     return `
-      <button class="resource-card${resource.id === state.selectedId ? ' selected' : ''}" data-id="${escapeHtml(resource.id)}" style="--accent:${theme.accent};--accent-soft:${theme.soft}">
+      <article tabindex="0" aria-labelledby="card-title-${escapeHtml(resource.id)}" class="resource-card${resource.id === state.selectedId ? ' selected' : ''}" data-id="${escapeHtml(resource.id)}" style="--accent:${theme.accent};--accent-soft:${theme.soft}">
         <div class="card-top"><span class="type-icon">${theme.icon}</span>${resource.status === 'draft' ? '<span class="draft-badge">Needs review</span>' : ''}</div>
-        <h3>${escapeHtml(resource.title)}</h3>
+        <h3 id="card-title-${escapeHtml(resource.id)}">${escapeHtml(resource.title)}</h3>
         <div class="card-author">${escapeHtml(resource.authors.join(', ') || 'Author not set')}</div>
         <p class="card-description">${escapeHtml(resource.description || 'No description yet.')}</p>
         <div class="card-meta">${pills.map((pill, index) => `<span class="pill${index === 0 ? ' category' : ''}">${escapeHtml(pill)}</span>`).join('')}</div>
-      </button>`;
+        <div class="card-access"><span>${resource.filePath ? 'Local file' : resource.url ? 'Web link' : 'Catalog entry only'}</span><button class="button compact" data-card-action="${resource.filePath || resource.url ? 'open' : 'details'}">${resource.filePath || resource.url ? 'Open' : 'View details'}</button></div>
+      </article>`;
   }).join('');
-  $$('.resource-card').forEach(card => card.addEventListener('click', () => {
+  $$('.resource-card').forEach(card => card.addEventListener('click', event => {
     state.selectedId = card.dataset.id;
+    if (event.target.closest('[data-card-action="open"]')) {
+      api.openResource(state.selectedId).catch(error => toast(errorMessage(error), true));
+      return;
+    }
     renderCards();
     renderDetails();
+    $('.tab[data-tab="details"]').click();
+    $('#closeInspector').focus();
+    if ($('#documentSearchSelected').checked) document.dispatchEvent(new Event('library-search'));
+  }));
+  $$('.resource-card').forEach(card => card.addEventListener('keydown', event => {
+    if (event.target === card && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); card.click(); }
   }));
 }
+
+function setInspectorOpen(open) {
+  $('.app-shell').classList.toggle('inspector-collapsed', !open);
+  $('.inspector').hidden = !open;
+}
+$('#closeInspector').addEventListener('click', () => {
+  setInspectorOpen(false);
+  ($$('.resource-card').find(card => card.dataset.id === state.selectedId) || $('#askLibraryButton')).focus();
+});
+$('#askLibraryButton').addEventListener('click', () => { $('.tab[data-tab="chat"]').click(); $('#chatInput').focus(); });
+$('#viewSelect').addEventListener('change', event => {
+  $('#resourceGrid').classList.toggle('list-view', event.target.value === 'list');
+  localStorage.setItem('psyshelf-view', event.target.value);
+});
+$('#viewSelect').value = localStorage.getItem('psyshelf-view') === 'list' ? 'list' : 'grid';
+$('#resourceGrid').classList.toggle('list-view', $('#viewSelect').value === 'list');
+for (const [id, field] of [['topicFilter', 'clinicalTopic'], ['audienceFilter', 'audience'], ['approachFilter', 'theoreticalApproach']]) {
+  $(`#${id}`).addEventListener('change', event => { state[field] = event.target.value; renderCards(); document.dispatchEvent(new Event('library-search')); });
+}
+$('#clearFilters').addEventListener('click', () => {
+  for (const field of ['category', 'language', 'clinicalTopic', 'audience', 'theoreticalApproach']) state[field] = '';
+  render();
+});
 
 let contextResourceId = null;
 let contextScrollTop = 0;
@@ -245,7 +291,7 @@ function renderDetails() {
         <p>${escapeHtml(resource.authors.join(', ') || 'Author not set')}</p>
       </div>
       <div class="detail-actions">
-        <button class="button primary" id="previewButton" >Preview</button>
+        <button class="button primary" id="previewButton" ${canOpen ? '' : 'disabled'}>Preview</button>
         <button class="button ghost" id="analyzeButton">Run metadata agent</button>
         <button class="button ghost" id="correctButton">Request correction</button>
       </div>
@@ -378,11 +424,12 @@ function render() {
   renderFilters();
   renderCards();
   renderDetails();
+  document.dispatchEvent(new Event('library-search'));
 }
 
 async function loadResources(selectId = null) {
   state.resources = await api.listResources({});
-  if (selectId) state.selectedId = selectId;
+  if (selectId) { state.selectedId = selectId; setInspectorOpen(true); }
   if (state.selectedId && !state.resources.some(item => item.id === state.selectedId)) state.selectedId = null;
   render();
 }
@@ -460,7 +507,7 @@ $('#addFileButton').addEventListener('click', async () => {
 $('#addUrlButton').addEventListener('click', () => $('#urlDialog').showModal());
 $('#settingsButton').addEventListener('click', openSettings);
 $('#backupCard').addEventListener('click', openSettings);
-$('#allResourcesButton').addEventListener('click', () => { state.category = ''; state.language = ''; state.query = ''; $('#searchInput').value = ''; render(); });
+$('#allResourcesButton').addEventListener('click', () => { for (const field of ['category', 'language', 'clinicalTopic', 'audience', 'theoreticalApproach', 'query']) state[field] = ''; $('#searchInput').value = ''; render(); });
 
 $$('[data-close]').forEach(button => button.addEventListener('click', () => $(`#${button.dataset.close}`).close()));
 
@@ -509,7 +556,7 @@ $('#correctionForm').addEventListener('submit', async event => {
   finally { submit.disabled = false; submit.textContent = 'Ask agent to review'; }
 });
 
-$('#searchInput').addEventListener('input', event => { state.query = event.target.value.trim(); renderCards(); });
+$('#searchInput').addEventListener('input', event => { state.query = event.target.value.trim(); renderCards(); document.dispatchEvent(new Event('library-search')); });
 $('#sortSelect').addEventListener('change', event => { state.sort = event.target.value; renderCards(); });
 document.addEventListener('keydown', event => {
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
@@ -518,6 +565,7 @@ document.addEventListener('keydown', event => {
 });
 
 $$('.tab').forEach(tab => tab.addEventListener('click', () => {
+  setInspectorOpen(true);
   $$('.tab').forEach(item => item.classList.toggle('active', item === tab));
   $$('.tab-panel').forEach(panel => panel.classList.toggle('active', panel.id === `${tab.dataset.tab}Panel`));
 }));
@@ -704,7 +752,7 @@ $('#runAgentSetup').addEventListener('click', openAgentSetup);
 $('#setupRescan').addEventListener('click', scanAgentHardware);
 $('#agentSetupDialog').addEventListener('close', () => {
   setupScanGeneration++;
-  api.dismissSetup?.().catch(error => toast(`Could not save setup preference: ${errorMessage(error)}`, true));
+  api.dismissSetup?.().then(() => { $('#welcomeBanner').hidden = true; }).catch(error => toast(`Could not save setup preference: ${errorMessage(error)}`, true));
 });
 $('#setupGetOllama').addEventListener('click', () => api.openOfficialUrl('https://ollama.com/download/windows').catch(error => toast(errorMessage(error), true)));
 $('#setupCopyCommand').addEventListener('click', async () => {
@@ -739,8 +787,13 @@ api.onLanguageChange?.(language => {
   $('#interfaceLanguage').value = language;
 });
 
+$('#welcomeSetup').addEventListener('click', openAgentSetup);
+$('#dismissWelcome').addEventListener('click', async () => {
+  try { await api.dismissSetup?.(); $('#welcomeBanner').hidden = true; }
+  catch (error) { toast(errorMessage(error), true); }
+});
 Promise.all([loadResources(), refreshSettings()]).then(() => {
-  if (api.scanHardware && state.settings && !state.settings.agentSetupSeen) openAgentSetup();
+  $('#welcomeBanner').hidden = !api.scanHardware || !state.settings || state.settings.agentSetupSeen;
 }).catch(error => toast(errorMessage(error), true));
 
 $('#uninstallApp').addEventListener('click', async () => {

@@ -25,6 +25,9 @@ test('static interface copy has translations, including future additions', () =>
   }
 });
 test('dynamic progress and confirmation paragraphs translate while filenames remain intact', () => {
+  for (const label of ['Open', 'Local file', 'Catalog entry only', 'Web link', 'View details', 'All', 'Document search is available in the Windows desktop app.']) {
+    for (const language of ['French', 'Spanish']) assert.notEqual(translate(label, language), label);
+  }
   assert.equal(translate('Backup: Copying files','French'),'Sauvegarde: Copie des fichiers');
   assert.equal(translate('File 1 of 2 · 0.1 MB / 0.2 MB · Book.pdf','Spanish'),'Archivo 1 de 2 · 0.1 MB / 0.2 MB · Book.pdf');
   assert.equal(translate('Backup: C:\\Book\nSaved: 2026-09-11','French'),'Sauvegarde: C:\\Book\nEnregistré: 2026-09-11');

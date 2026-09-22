@@ -9,7 +9,7 @@
   <link rel="stylesheet" href="file-activity.css">
 </head>
 <body>
-  <div class="app-shell">
+  <div class="app-shell inspector-collapsed">
     <aside class="sidebar">
       <div class="sidebar-navigation">
       <div class="brand">
@@ -54,21 +54,27 @@
       <header class="topbar">
         <label class="search-box">
           <span aria-hidden="true">⌕</span>
-          <input id="searchInput" type="search" placeholder="Search title, author, topic, or language…" autocomplete="off">
+          <input id="searchInput" type="search" maxlength="4000" placeholder="Search resources and document contents…" aria-label="Search resources and document contents" autocomplete="off">
           <kbd>Ctrl K</kbd>
         </label>
-        <button class="button ghost" type="button" id="openDocumentSearch">Search documents</button>
+        <button class="button ghost" type="button" id="askLibraryButton">Ask library</button>
         <button class="button ghost" id="addUrlButton">Add link</button>
         <button class="button primary" id="addFileButton">＋ Add files</button>
       </header>
 
       <section class="library-view">
+        <div id="welcomeBanner" class="welcome-banner" hidden>
+          <div><strong>Your library is ready</strong><p>Browse, add resources, and search now. Set up optional local AI whenever you are ready.</p></div>
+          <button class="button ghost" id="welcomeSetup">Set up local AI</button>
+          <button class="button compact" id="dismissWelcome">Dismiss</button>
+        </div>
         <div class="library-heading">
           <div>
             <p class="eyebrow" id="activeFilterLabel">All resources</p>
             <h2>Your knowledge, in one place</h2>
           </div>
           <div class="view-tools">
+            <select id="viewSelect" aria-label="Resource view"><option value="grid">Cards</option><option value="list">List</option></select>
             <span id="resultCount">0 resources</span>
             <select id="sortSelect" aria-label="Sort resources">
               <option value="recent">Recently updated</option>
@@ -80,6 +86,13 @@
           </div>
         </div>
 
+        <div class="clinical-filters">
+          <label><span>Clinical topic</span><select id="topicFilter"></select></label>
+          <label><span>Audience</span><select id="audienceFilter"></select></label>
+          <label><span>Theoretical approach</span><select id="approachFilter"></select></label>
+          <button class="button compact" id="clearFilters">Clear filters</button>
+        </div>
+        <h3 id="resourceMatchesHeading" hidden>Resource matches</h3>
         <div id="resourceGrid" class="resource-grid" aria-live="polite"></div>
         <div id="emptyState" class="empty-state" hidden>
           <div class="empty-symbol">⌁</div>
@@ -89,10 +102,11 @@
       </section>
     </main>
 
-    <aside class="inspector">
+    <aside class="inspector" hidden>
       <div class="tabbar" role="tablist">
         <button class="tab active" data-tab="details" role="tab">Details</button>
         <button class="tab" data-tab="chat" role="tab">Ask library</button>
+        <button class="button compact inspector-close" id="closeInspector" aria-label="Close details panel">×</button>
       </div>
       <div id="detailsPanel" class="tab-panel active"></div>
       <div id="chatPanel" class="tab-panel chat-panel">
@@ -276,22 +290,23 @@
       <div class="button-row setup-actions"><button class="button ghost" id="setupRescan" type="button">Scan again</button><button class="button ghost" type="button" data-close="agentSetupDialog">Continue to library</button></div>
     </div>
   </dialog>
-  <dialog id="documentSearchDialog">
-    <form id="documentSearchForm" class="dialog-card">
-      <button class="dialog-close" type="button" data-close="documentSearchDialog" aria-label="Close">×</button>
-      <h2>Search inside documents</h2>
+  <section id="documentSearchSection" hidden aria-labelledby="passageHeading">
+    <h3 id="passageHeading">Document passages</h3>
+    <form id="documentSearchForm">
+      <details><summary>Document search options</summary>
       <p>Find passages in local PDFs and text files. Enable OCR for scanned PDFs and images. Files stay on your computer.</p>
-      <label class="field"><span>Search terms</span><input id="documentSearchQuery" maxlength="4000" required></label>
       <label><input type="checkbox" id="documentSearchSelected"> Search selected resource only</label>
       <label><input type="checkbox" id="documentSearchOCR"> Read scans and images with OCR</label>
       <label class="field"><span>OCR language</span><select id="documentSearchLanguage"><option value="eng">English</option><option value="fra">French</option><option value="spa">Spanish</option></select></label>
       <p>OCR can make mistakes. Check the original page. Up to 20 pages or images use OCR per search; choose a single resource for large libraries.</p>
-      <div class="button-row"><button class="button primary" type="submit" id="documentSearchStart">Search documents</button><button class="button ghost" type="button" id="documentSearchCancel" hidden>Cancel search</button></div>
+      <button class="button ghost" type="submit" id="documentSearchStart">Apply search options</button>
+      </details>
+      <button class="button ghost" type="button" id="documentSearchCancel" hidden>Cancel search</button>
       <p id="documentSearchStatus" role="status" aria-live="polite">Enter terms to search document contents.</p>
       <p id="documentSearchCurrent" translate="no"></p>
       <div id="documentSearchResults"></div>
     </form>
-  </dialog>
+  </section>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <script src="i18n.js"></script>
   <script src="app.js"></script>

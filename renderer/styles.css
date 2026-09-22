@@ -236,3 +236,38 @@ dialog::backdrop { background: rgba(25,38,33,.45); backdrop-filter: blur(4px); }
 .document-hit { padding: 12px 0; border-top: 1px solid var(--line); overflow-wrap: anywhere; }
 .document-hit blockquote { white-space: pre-wrap; margin: 10px 0; padding-left: 10px; border-left: 2px solid var(--green); max-height: 200px; overflow: auto; }
 #documentSearchCurrent { overflow-wrap: anywhere; }
+
+.app-shell.inspector-collapsed { grid-template-columns: 238px minmax(0, 1fr); }
+.inspector[hidden], .welcome-banner[hidden] { display: none; }
+.inspector-close { margin: 0 0 8px auto; align-self: center; }
+.welcome-banner { display: flex; align-items: center; gap: 12px; padding: 16px; margin-bottom: 24px; background: var(--green-3); border: 1px solid var(--line); border-radius: 12px; }
+.welcome-banner > div { flex: 1; }
+.welcome-banner p { margin: 5px 0 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.view-tools { flex-wrap: wrap; justify-content: flex-end; }
+.clinical-filters { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; margin-bottom: 24px; }
+.clinical-filters label { display: grid; gap: 5px; flex: 1; min-width: 130px; font-size: 11px; }
+.clinical-filters select { width: 100%; min-width: 0; padding: 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--ink); }
+.resource-card:focus-visible, button:focus-visible { outline: 2px solid var(--green); outline-offset: 3px; }
+.card-access { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); font-size: 10px; color: var(--muted); }
+.resource-grid.list-view { grid-template-columns: 1fr; }
+.list-view .resource-card { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; gap: 5px 14px; min-height: 0; padding: 15px; }
+.list-view .card-top { grid-column: 1; grid-row: 1 / 4; flex-direction: column; }
+.list-view h3 { grid-column: 2; margin: 0; display: block; }
+.list-view .card-author { grid-column: 2; white-space: normal; }
+.list-view .card-description { grid-column: 2; display: block; margin: 6px 0; overflow-wrap: anywhere; }
+.list-view .card-meta { grid-column: 2; }
+.list-view .card-access { grid-column: 3; grid-row: 1 / 5; flex-direction: column; justify-content: center; align-items: end; border: 0; padding: 0; margin: 0; }
+#documentSearchSection { margin-top: 30px; padding-top: 15px; border-top: 1px solid var(--line); }
+#documentSearchForm details { padding: 12px; border: 1px solid var(--line); border-radius: 10px; font-size: 12px; }
+#documentSearchForm details > label { display: block; margin: 10px 0; }
+#documentSearchForm summary { cursor: pointer; }
+#documentSearchStatus { font-size: 12px; }
+.search-active .empty-state { padding: 20px; }
+.card-access { flex-wrap: wrap; }
+@media (max-width: 1200px) {
+  .app-shell.inspector-collapsed { grid-template-columns: 210px minmax(0, 1fr); }
+  .app-shell:not(.inspector-collapsed) { grid-template-columns: 180px minmax(0, 1fr) 300px; }
+  .library-heading, .welcome-banner { flex-wrap: wrap; }
+  .view-tools { justify-content: flex-start; }
+  .list-view .card-access { grid-column: 2; grid-row: auto; flex-direction: row; justify-content: space-between; }
+}

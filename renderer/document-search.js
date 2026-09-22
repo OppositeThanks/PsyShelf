@@ -1,40 +1,60 @@
 (() => {
   const api = window.psyLibrary;
   const el = id => document.getElementById(id);
-  const dialog = el('documentSearchDialog');
+  const section = el('documentSearchSection');
+  document.querySelector('.library-view').append(section);
+  let generation = 0;
+  let timer;
+  let queue = Promise.resolve();
   let busy = false;
   function setBusy(value) {
     busy = value;
-    for (const id of ['documentSearchQuery','documentSearchSelected','documentSearchOCR','documentSearchLanguage','documentSearchStart']) el(id).disabled = value;
+    for (const id of ['documentSearchSelected','documentSearchOCR','documentSearchLanguage','documentSearchStart']) el(id).disabled = value;
     el('documentSearchCancel').hidden = !value;
   }
-  el('openDocumentSearch').addEventListener('click', () => {
-    if (!api?.searchDocuments) return;
-    if (!busy) {
-      el('documentSearchQuery').value ||= document.getElementById('searchInput')?.value || '';
-      el('documentSearchLanguage').value = {English:'eng',French:'fra',Spanish:'spa'}[window.psyI18n.language] || 'eng';
-    }
-    dialog.showModal(); el('documentSearchQuery').focus();
-  });
   const cancel = () => api?.cancelDocumentSearch().catch(() => {});
-  el('documentSearchCancel').addEventListener('click', cancel);
-  dialog.addEventListener('close', () => { if (busy) void cancel(); });
+  el('documentSearchCancel').addEventListener('click', () => {
+    generation++; clearTimeout(timer); void cancel();
+    el('documentSearchStatus').textContent = 'Document search cancelled.';
+    el('documentSearchCurrent').textContent = '';
+  });
   api?.onDocumentSearchProgress(progress => {
-    if (!busy) return;
+    if (!busy || runningGeneration !== generation) return;
     el('documentSearchStatus').textContent = 'Searching document ' + progress.file + ' of ' + progress.total + '…';
     el('documentSearchCurrent').textContent = progress.title;
   });
-  el('documentSearchForm').addEventListener('submit', async event => {
-    event.preventDefault(); if (busy) return;
+  let runningGeneration = 0;
+  function scheduleSearch(delay = 450) {
+    const request = ++generation;
+    clearTimeout(timer);
+    if (busy) void cancel();
+    const query = el('searchInput').value.trim();
+    section.hidden = !query;
+    el('documentSearchResults').replaceChildren();
+    el('documentSearchCurrent').textContent = '';
+    if (!query) return;
+    el('documentSearchStatus').textContent = api?.searchDocuments ? 'Searching document contents…' : 'Document search is available in the Windows desktop app.';
+    if (api?.searchDocuments) timer = setTimeout(() => { queue = queue.then(() => runSearch(request, query)); }, delay);
+  }
+  document.addEventListener('library-search', () => scheduleSearch());
+  el('documentSearchForm').addEventListener('submit', event => { event.preventDefault(); scheduleSearch(0); });
+  async function runSearch(request, query) {
+    if (request !== generation) return;
+    runningGeneration = request;
     const resourceId = el('documentSearchSelected').checked ? currentResource()?.id : null;
     if (el('documentSearchSelected').checked && !resourceId) { el('documentSearchStatus').textContent = 'Select a resource in the library first.'; return; }
-    const query = el('documentSearchQuery').value.trim(); if (!query) return;
-    const options = { resourceId, ocr: el('documentSearchOCR').checked, language: el('documentSearchLanguage').value };
+    const resourceIds = state.resources.filter(resource =>
+      (!state.category || resource.categories.includes(state.category)) &&
+      (!state.language || resource.languages.includes(state.language)) &&
+      ['clinicalTopic', 'audience', 'theoreticalApproach'].every(field => !state[field] || resource[field] === state[field])
+    ).map(resource => resource.id);
+    const options = { resourceId, resourceIds, ocr: el('documentSearchOCR').checked, language: el('documentSearchLanguage').value };
     setBusy(true);
     el('documentSearchResults').replaceChildren();
     el('documentSearchStatus').textContent = 'Searching document contents…';
     try {
       const answer = await api.searchDocuments(query, options);
+      if (request !== generation) return;
       el('documentSearchStatus').textContent = answer.cancelled ? 'Document search cancelled.' : answer.results.length ? 'Matching passages: ' + answer.results.length : 'No matching passages found.';
       for (const result of answer.results) {
         const card = document.createElement('section'); card.className = 'document-hit';
@@ -55,7 +75,7 @@
         }
         el('documentSearchResults').append(warnings);
       }
-    } catch (error) { el('documentSearchStatus').textContent = String(error.message || '').replace(/^Error invoking remote method '[^']+': Error: /,''); }
-    finally { setBusy(false);el('documentSearchCurrent').textContent=''; }
-  });
+    } catch (error) { if (request === generation) el('documentSearchStatus').textContent = String(error.message || '').replace(/^Error invoking remote method '[^']+': Error: /,''); }
+    finally { setBusy(false); if (request === generation) el('documentSearchCurrent').textContent=''; }
+  }
 })();

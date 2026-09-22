@@ -456,7 +456,8 @@ function registerHandlers() {
   ipcMain.handle('documents:search', (_event, query, options = {}) => {
     if (typeof query !== 'string' || !query.trim() || query.length > 4000) throw new Error('Enter search terms of up to 4,000 characters.');
     if (!options || typeof options !== 'object' || !['eng', 'fra', 'spa'].includes(options.language) || typeof options.ocr !== 'boolean') throw new Error('Invalid document search options.');
-    const resources = listResources().filter(resource => !options.resourceId || resource.id === options.resourceId);
+    if (options.resourceIds !== undefined && (!Array.isArray(options.resourceIds) || options.resourceIds.some(id => typeof id !== 'string'))) throw new Error('Invalid document search options.');
+    const resources = listResources().filter(resource => (!options.resourceId || resource.id === options.resourceId) && (!options.resourceIds || options.resourceIds.includes(resource.id)));
     return documentSearch.run(resources, query, { ocr: options.ocr, language: options.language });
   });
   ipcMain.handle('documents:cancel', async () => { await documentSearch.cancel(); return { cancelled: true }; });
