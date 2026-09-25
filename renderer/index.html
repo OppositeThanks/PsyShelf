@@ -33,6 +33,12 @@
         <div class="section-label">Languages</div>
         <div id="languageFilters" class="filter-list"></div>
       </section>
+      <section class="filter-section reading-filters">
+        <label>Reading status<select id="readingFilter"><option value="">All</option><option value="to-read">To read</option><option value="reading">Reading</option><option value="finished">Finished</option></select></label>
+        <label>Collections<select id="collectionFilter"><option value="">All</option></select></label>
+        <label>Saved searches<select id="savedSearchSelect"><option value="">Choose a saved search</option></select></label>
+        <button class="button compact" id="libraryToolsButton">Organize library</button>
+      </section>
 
       </div>
       <div class="sidebar-footer">
@@ -310,6 +316,7 @@
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <script src="i18n.js"></script>
   <script src="app.js"></script>
+  <script src="library-tools.js"></script>
   <script src="file-activity.js"></script>
   <script src="updates.js"></script>
   <script src="document-search.js"></script>

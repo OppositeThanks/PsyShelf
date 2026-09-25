@@ -6,7 +6,7 @@ openOriginal.addEventListener('click', async () => {
   try { await window.psyPreview.openOriginal(); }
   catch (error) { status.hidden = false; status.textContent = error.message; }
 });
-window.psyPreview.getData().then(data => {
+window.psyPreview.getData().then(async data => {
   window.psyI18n.setLanguage(data.language);
   document.title = `${data.title} — Preview`;
   title.textContent = data.title;
@@ -25,7 +25,10 @@ window.psyPreview.getData().then(data => {
     else element.controls = true;
     element.src = data.fileUrl;
     element.addEventListener('error', () => { status.hidden = false; status.textContent = 'This media could not be displayed. Try Open with Windows.'; });
-  } else if (data.kind === 'pdf' || (data.kind === 'url' && data.url)) {
+  } else if (data.kind === 'pdf') {
+    try { await window.startPdfReader(data); return; }
+    catch { status.hidden = false; status.textContent = 'PDF preview unavailable. Try Open with Windows.'; return; }
+  } else if (data.kind === 'url' && data.url) {
     element = document.createElement('iframe');
     element.title = data.title;
     if (data.kind === 'url') {
@@ -35,11 +38,7 @@ window.psyPreview.getData().then(data => {
       status.hidden = false;
       status.textContent = 'Some websites block embedded previews. If the page is blank or sign-in is required, choose Open in browser.';
     }
-    element.src = data.kind === 'pdf' ? data.fileUrl + (data.page ? '#page=' + data.page : '') : data.url;
-    if (data.kind === 'pdf' && data.page) {
-      status.hidden = false;
-      status.textContent = 'PDF page ' + data.page + '. Page numbers count from the start of the file.';
-    }
+    element.src = data.url;
   } else {
     status.hidden = false;
     status.textContent = data.kind === 'missing' ? 'The file is missing or this entry has no attached file to preview.' : `This format cannot be previewed here. ${data.helper?.reason || 'Try opening it with Windows.'}`;

@@ -271,3 +271,23 @@ dialog::backdrop { background: rgba(25,38,33,.45); backdrop-filter: blur(4px); }
   .view-tools { justify-content: flex-start; }
   .list-view .card-access { grid-column: 2; grid-row: auto; flex-direction: row; justify-content: space-between; }
 }
+/* Reading and library organization */
+.reading-filters { display: grid; gap: 12px; }
+.reading-filters label { display: grid; gap: 5px; }
+.reading-filters select { width: 100%; min-width: 0; }
+.organize-dialog { width: min(800px, 92vw); max-height: 90vh; border: 1px solid #d6ddd4; border-radius: 16px; background: #fffdf8; color: #20332c; padding: 22px; }
+.organize-dialog::backdrop { background: #20332c66; }
+.organize-dialog header { display: flex; justify-content: space-between; align-items: center; gap: 20px; position: sticky; top: -22px; background: #fffdf8; z-index: 1; padding: 10px 0; }
+.organize-dialog section { border-bottom: 1px solid #dedfd6; padding-bottom: 20px; margin-bottom: 20px; }
+.tool-form { display: grid; gap: 12px; margin: 16px 0; }
+.tool-form label { display: grid; gap: 6px; }
+.tool-form input, .tool-form textarea, .tool-form select { width: 100%; }
+.bulk-resources { max-height: 200px; overflow: auto; padding: 8px; border: 1px solid #dedfd6; margin: 12px 0; }
+.bulk-resources label { display: flex; gap: 10px; padding: 5px; }
+.bulk-resources input { flex: none; }
+.annotation-item { padding: 12px; border: 1px solid #dedfd6; margin: 10px 0; border-radius: 8px; }
+.annotation-item p, .annotation-item blockquote { white-space: pre-wrap; overflow-wrap: anywhere; }
+.cleanup-row { display: flex; gap: 10px; align-items: center; margin: 10px 0; }
+.cleanup-row > span { flex: 1; overflow-wrap: anywhere; }
+.cleanup-row small { display: block; }
+.tool-status { white-space: pre-wrap; }

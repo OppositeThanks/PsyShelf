@@ -1,6 +1,15 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('psyLibrary', {
+  savedSearches: () => ipcRenderer.invoke('library:saved-searches'),
+  saveSearches: value => ipcRenderer.invoke('library:save-searches', value),
+  bulkEdit: (ids, patch) => ipcRenderer.invoke('library:bulk', ids, patch),
+  scanLibrary: () => ipcRenderer.invoke('library:scan'),
+  cancelLibraryScan: () => ipcRenderer.invoke('library:cancel-scan'),
+  relinkFile: id => ipcRenderer.invoke('library:relink', id),
+  exportNotes: id => ipcRenderer.invoke('library:export-notes', id),
+  clearIndex: () => ipcRenderer.invoke('library:clear-index'),
+  onLibraryChanged: callback => ipcRenderer.on('library:changed', () => callback()),
   searchDocuments: (query, options) => ipcRenderer.invoke('documents:search', query, options),
   cancelDocumentSearch: () => ipcRenderer.invoke('documents:cancel'),
   onDocumentSearchProgress: callback => ipcRenderer.on('documents:progress', (_event, value) => callback(value)),

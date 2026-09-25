@@ -1,8 +1,8 @@
 const { Worker } = require('node:worker_threads');
 const path = require('node:path');
-function searchEvidence(resources, question) {
+function searchEvidence(resources, question, options = {}) {
   return new Promise((resolve, reject) => {
-    const worker = new Worker(path.join(__dirname, 'evidence-worker.cjs'), { workerData: { resources, question } });
+    const worker = new Worker(path.join(__dirname, 'evidence-worker.cjs'), { workerData: { resources, question, options } });
     let settled = false;
     const finish = (error, result) => {
       if (settled) return;

@@ -30,6 +30,16 @@ including personal notes.
 - Export shareable metadata packages, optionally including a file after the owner confirms permission to share it.
 - Back up the SQLite database and managed files to a Google Drive, OneDrive, or other cloud-synchronized folder.
 
+## Reading and library organization
+
+- **Reading & annotations** in resource details provides **To read / Reading / Finished**, collections, bookmarks, and annotations. Filter by reading status or collection in the sidebar. PDF **Open** and **Resume reading** use the built-in reader, which remembers the last successfully opened physical page. Reading in an external Windows app does not update this position.
+- Assign comma-separated collection names to resources. Use **Organize library → Saved searches** to save the current query, filters, sort order, and OCR options, then recall it from the sidebar. Delete saved searches from the organizer. Collections exist while assigned to resources; bulk editing can rename or remove assignments.
+- Select PDF text, choose **Highlight selection**, add an optional note, and **Save annotation**. Highlights appear when the passage is reopened. **Reading & annotations** supports editing/deleting annotations, opening source pages, and exporting Markdown with author, year, title, URL, quotes, notes, and page numbers. Scans without selectable text support manually entered page-linked notes. Non-PDF notes need no page number. Originals remain unchanged. Built-in PDF reading supports files up to 32 MiB; use Windows for larger or protected PDFs.
+- **Organize library → Bulk metadata editing** lists the current catalog results. Select entries, choose a field and replacement value, review, and apply. Collections, reading status, categories, languages, topic, audience, and approach are supported. Empty values clear the chosen field; failures roll back the entire transaction.
+- **Library cleanup** finds identical file contents using SHA-256, repeated URLs (ignoring fragments), possible catalog-only duplicates by title, and missing/unreadable files. Scanning is cancellable and never deletes anything. Review entries through **View details**, then use the existing removal confirmation if appropriate. **Locate replacement file** asks you to choose and confirm a replacement. It preserves reading data and originals; managed entries receive a new managed copy so backups continue to include them. If choosing a different document, verify that retained annotations and pages still apply.
+
+Reading progress, bookmarks, collections, annotations, and saved searches are included in backups and restores. Resource annotations and collections also appear in shareable metadata exports. English, French, and Spanish controls preserve your notes, collection names, quotations, and filenames as entered.
+
 ## Install and run
 
 [**Download PsyShelf for Windows (.exe)**](https://github.com/OppositeThanks/PsyShelf/releases/latest/download/PsyShelf-Setup-Windows.exe)
@@ -53,7 +63,7 @@ Open **Agent & backup settings → Uninstall PsyShelf…** in an installed Windo
 The locally built Windows installer is produced at:
 
 ```text
-dist/PsyShelf-Setup-0.1.0-Windows.exe
+dist/PsyShelf-Setup-0.3.0-Windows.exe
 ```
 
 For development, install Node.js 24 or later and pnpm, then run:
@@ -129,7 +139,13 @@ Expand **Document search options** to configure OCR or search only the selected 
 
 Enable **Read scans and images with OCR** for scanned PDF pages and PNG, JPEG, BMP, or WebP images. Choose English, French, or Spanish. OCR engines and language data are bundled: files and recognized text stay on your computer, with no model download required. OCR runs on PDF pages containing fewer than 40 text characters and labels recognized passages so you can check the original. Choose **Search selected resource only** to focus on the entry selected in your library.
 
-Search runs in a background worker with progress. **Cancel search** stops it; changing or clearing the main query also cancels the previous search. Unlike the AI retrieval path, this search scans beyond the first 30 resources. It returns up to 100 matching passages. Each file is limited to 32 MiB, PDF extraction to 600 pages and one million characters, OCR to 20 pages/images per search and four million rendered pixels, and the overall job to ten minutes. Limits and unreadable files appear under **Search limitations**. This does not create a persistent index or modify originals. OCR may miss faint, handwritten, rotated, or complex layouts. Office and e-book formats remain unsupported.
+Search runs in a background worker with progress. **Cancel search** stops it; changing or clearing the main query also cancels the previous search. Unlike the AI retrieval path, this search scans beyond the first 30 resources. It returns up to 100 matching passages. Each file is limited to 32 MiB, PDF extraction to 600 pages and one million characters, fresh OCR to 20 pages/images per search and four million rendered pixels, and the overall job to ten minutes. Limits and unreadable files appear under **Search limitations**. Extraction is indexed locally; originals are never modified. Collection and reading-status filters also scope document passages. OCR may miss faint, handwritten, rotated, or complex layouts. Office and e-book formats remain unsupported.
+
+### Persistent local document index
+
+The first document search extracts text and optional OCR into the app-data `document-index/` folder. Later searches reuse unchanged passages. File size and modification/change timestamps detect edits; OCR languages and plain-text extraction have separate entries. Changed files are reindexed on the next search. Missing files do not return stale passages, damaged entries rebuild automatically, and OCR interrupted by processing limits is retried. AI excerpt retrieval reuses the plain-text index but does not consume OCR entries.
+
+This on-demand extraction index stores readable document content locally; it is not semantic search or a continuous background scan. It is excluded from backups and never uploads or modifies originals. **Organize library → Clear document index** reclaims space or forces fresh extraction. Entries for removed/moved files remain until cleared.
 
 ## In-app update notifications and downloads
 
@@ -147,7 +163,7 @@ Text files have passage references without invented page numbers. Web links and 
 
 If Ollama is unavailable, matching excerpts are still shown. If the model returns unknown or missing source IDs, its answer is discarded and the excerpts remain available. Valid IDs establish where an excerpt came from, not whether every model interpretation is correct: read the excerpts before relying on an answer.
 
-Current limits: lexical matching (not semantic or cross-language search), up to 30 candidate resources per question, PDFs up to 32 MiB, the first 600 pages and one million extracted characters per document, and eight selected excerpts. Search limitations identify missing, protected, unsupported or partially read files. Scanned PDFs can be searched with OCR in **Search documents**; the AI answer pipeline still uses existing text layers only. Office/e-book extraction is not included. Files are read again for each question; after editing a source, ask again for updated references. Questions are independent; this does not add persistent chat history or document indexing.
+Current limits: lexical matching (not semantic or cross-language search), up to 30 candidate resources per question, PDFs up to 32 MiB, the first 600 pages and one million extracted characters per document, and eight selected excerpts. Search limitations identify missing, protected, unsupported or partially read files. Scanned PDFs can be searched with OCR in the main search; the AI answer pipeline still uses existing text layers only. Office/e-book extraction is not included. Unchanged text extraction is reused from the local index; after editing a source, ask again for updated references. Questions are independent; this does not add persistent chat history.
 
 ## File previews and helper recommendations
 
@@ -208,6 +224,15 @@ scripts/    Automated Electron smoke test
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for data boundaries and the mobile-ready direction.
 
 ## Update history
+
+### 2026-09-25 — reading and library organization
+
+- Added reading status, remembered PDF pages, bookmarks, collections, and saved searches with OCR settings.
+- Added selectable PDF text, passage highlights, page-linked annotations, editing, and Markdown reference export.
+- Reuse local text/OCR extraction across searches and plain-text AI retrieval; refresh changed files and allow index clearing.
+- Added cancellable duplicate/missing-file scanning, confirmed file reconnection, and reviewed transactional bulk edits.
+- Back up and restore the new reading data and saved searches; translate new controls and dialogs into French and Spanish. Fixed a race where settings refresh could undo a language change.
+- These source changes start the 0.3 release series. A downloadable installer follows successful Windows CI.
 
 ### 2026-09-22 — library usability (source update; installer pending CI)
 

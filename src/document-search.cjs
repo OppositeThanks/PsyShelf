@@ -2,7 +2,7 @@ const { extractDocument } = require('./source-evidence.cjs');
 const { DocumentOCR } = require('./document-ocr.cjs');
 const normalize = value => String(value).normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
 
-async function searchDocuments(resources, query, { ocr = false, language = 'eng', progress = () => {} } = {}) {
+async function searchDocuments(resources, query, { ocr = false, language = 'eng', progress = () => {}, cacheDir } = {}) {
   const terms = [...new Set(normalize(query).split(/\s+/).filter(Boolean))];
   if (!terms.length) return { results: [], warnings: [] };
   const engine = ocr ? new DocumentOCR(language) : null;
@@ -14,7 +14,7 @@ async function searchDocuments(resources, query, { ocr = false, language = 'eng'
       const report = page => progress({ file: index + 1, total: files.length, title: resource.title, page: page || null });
       report();
       let document;
-      try { document = await extractDocument(resource.filePath, { ocr: engine, progress: report }); }
+      try { document = await require('./document-index.cjs').indexedDocument(resource.filePath, { ocr: engine, progress: report, cacheDir }, extractDocument); }
       catch { warnings.push({ title: resource.title, message: 'File unreadable, missing, or password-protected.' }); continue; }
       if (document.warning) warnings.push({ title: resource.title, message: document.warning });
       for (const page of document.pages) {

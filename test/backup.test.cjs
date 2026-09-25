@@ -52,6 +52,20 @@ test('dated snapshots preserve history and committed WAL data', t => {
   assert.equal(inspectBackup(second.folder).managedCount, 1);
 });
 
+test('reading progress, annotations, collections and saved searches survive backup restoration', t => {
+  const f = fixture(t); f.add();
+  const details = {readingStatus:'reading',lastPage:8,bookmarks:[2,8],collections:['Course'],annotations:[{id:'a',page:8,quote:'Exact quote',note:'Personal note'}]};
+  f.db.prepare('UPDATE resources SET details=?').run(JSON.stringify(details));
+  f.db.exec('CREATE TABLE library_preferences(key TEXT PRIMARY KEY,value TEXT NOT NULL)');
+  f.db.prepare('INSERT INTO library_preferences VALUES (?,?)').run('saved-searches',JSON.stringify([{name:'Course',filters:{collection:'Course'},ocr:true,ocrLanguage:'spa'}]));
+  const snapshot = f.snapshot(); inspectBackup(snapshot.folder);
+  f.db.exec("UPDATE resources SET details='{}'; DELETE FROM library_preferences");
+  const prepared = prepareRestore(snapshot.folder,f.userData);
+  installRestore({staging:prepared.staging,userData:f.userData,close:f.close,open:f.open});
+  assert.deepEqual(JSON.parse(f.db.prepare('SELECT details FROM resources').get().details),details);
+  assert.equal(JSON.parse(f.db.prepare('SELECT value FROM library_preferences').get().value)[0].filters.collection,'Course');
+});
+
 test('restore rebases managed paths, preserves notes and corrections, and leaves external references unchanged', t => {
   const f = fixture(t);
   f.add();

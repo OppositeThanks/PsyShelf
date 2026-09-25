@@ -46,6 +46,8 @@ const state = {
   clinicalTopic: '',
   audience: '',
   theoreticalApproach: '',
+  collection: '',
+  readingStatus: '',
   agent: null,
   settings: null
 };
@@ -96,6 +98,8 @@ function currentResource() {
 function filteredResources() {
   const terms = state.query.toLocaleLowerCase().split(/\s+/).filter(Boolean);
   let result = state.resources.filter(resource => {
+    if (state.collection && !(resource.collections || []).includes(state.collection)) return false;
+    if (state.readingStatus && (resource.readingStatus || 'to-read') !== state.readingStatus) return false;
     if (['clinicalTopic', 'audience', 'theoreticalApproach'].some(field => state[field] && resource[field] !== state[field])) return false;
     if (state.category && !resource.categories.includes(state.category)) return false;
     if (state.language && !resource.languages.includes(state.language)) return false;
@@ -120,6 +124,11 @@ function filterCounts(field) {
 }
 
 function renderFilters() {
+  const collections = [...new Set(state.resources.flatMap(r => r.collections || []))].sort((a,b) => a.localeCompare(b));
+  $('#collectionFilter').innerHTML = '<option value="">All</option>' + collections.map(c => `<option translate="no" value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+  if (state.collection && !collections.includes(state.collection)) state.collection = '';
+  $('#collectionFilter').value = state.collection;
+  $('#readingFilter').value = state.readingStatus;
   for (const [id, field] of [['topicFilter', 'clinicalTopic'], ['audienceFilter', 'audience'], ['approachFilter', 'theoreticalApproach']]) {
     const values = [...new Set(state.resources.map(resource => resource[field]).filter(Boolean))].sort((a, b) => a.localeCompare(b));
     if (!values.includes(state[field])) state[field] = '';
@@ -163,14 +172,15 @@ function renderCards() {
         <h3 id="card-title-${escapeHtml(resource.id)}">${escapeHtml(resource.title)}</h3>
         <div class="card-author">${escapeHtml(resource.authors.join(', ') || 'Author not set')}</div>
         <p class="card-description">${escapeHtml(resource.description || 'No description yet.')}</p>
-        <div class="card-meta">${pills.map((pill, index) => `<span class="pill${index === 0 ? ' category' : ''}">${escapeHtml(pill)}</span>`).join('')}</div>
+        <div class="card-meta">${pills.map((pill, index) => `<span class="pill${index === 0 ? ' category' : ''}">${escapeHtml(pill)}</span>`).join('')}<span class="pill">${({ 'to-read': 'To read', reading: 'Reading', finished: 'Finished' })[resource.readingStatus] || 'To read'}</span></div>
         <div class="card-access"><span>${resource.filePath ? 'Local file' : resource.url ? 'Web link' : 'Catalog entry only'}</span><button class="button compact" data-card-action="${resource.filePath || resource.url ? 'open' : 'details'}">${resource.filePath || resource.url ? 'Open' : 'View details'}</button></div>
       </article>`;
   }).join('');
   $$('.resource-card').forEach(card => card.addEventListener('click', event => {
     state.selectedId = card.dataset.id;
     if (event.target.closest('[data-card-action="open"]')) {
-      api.openResource(state.selectedId).catch(error => toast(errorMessage(error), true));
+      const resource = currentResource();
+      (resource.extension === '.pdf' ? api.openPreview(resource.id) : api.openResource(resource.id)).catch(error => toast(errorMessage(error), true));
       return;
     }
     renderCards();
@@ -203,7 +213,7 @@ for (const [id, field] of [['topicFilter', 'clinicalTopic'], ['audienceFilter', 
   $(`#${id}`).addEventListener('change', event => { state[field] = event.target.value; renderCards(); document.dispatchEvent(new Event('library-search')); });
 }
 $('#clearFilters').addEventListener('click', () => {
-  for (const field of ['category', 'language', 'clinicalTopic', 'audience', 'theoreticalApproach']) state[field] = '';
+  for (const field of ['category', 'language', 'clinicalTopic', 'audience', 'theoreticalApproach', 'collection', 'readingStatus']) state[field] = '';
   render();
 });
 
@@ -318,7 +328,7 @@ function renderDetails() {
         </div>
         <h4>Personal notes</h4>
         <p class="detail-description" ${resource.personalNotes ? '' : 'data-ui'}>${escapeHtml(resource.personalNotes || 'No notes yet.')}</p>
-        <div class="button-row"><button class="button ghost" id="editResourceDetails">Edit details & notes</button></div>
+        <div class="button-row"><button class="button ghost" id="editResourceDetails">Edit details & notes</button><button class="button ghost" id="readingDetailsButton">Reading & annotations</button></div>
       </section>
       <section class="detail-section" id="previewSection" hidden>
         <h4>Preview helper</h4>
@@ -333,6 +343,7 @@ function renderDetails() {
     </div>`;
 
   $('#previewButton')?.addEventListener('click', () => showPreview(resource));
+  $('#readingDetailsButton').addEventListener('click', () => window.libraryTools.openReading(resource.id));
   $('#analyzeButton').addEventListener('click', analyzeSelected);
   $('#correctButton').addEventListener('click', () => openCorrection(resource));
   $('#shareButton').addEventListener('click', () => shareSelected(resource));
@@ -457,14 +468,18 @@ async function refreshBackupStatus() {
   } catch (error) { $('#backupStatus').textContent = 'Backup status unavailable: ' + errorMessage(error); }
 }
 
+let languageRevision = 0;
 async function refreshSettings() {
+  const revision = languageRevision;
   await refreshBackupStatus();
   try {
     state.settings = await api.getSettings();
     $('#appVersion').textContent = `PsyShelf ${state.settings.appVersion}`;
     $('#uninstallApp').disabled = !state.settings.canUninstall;
-    window.psyI18n.setLanguage(state.settings.language);
-    $('#interfaceLanguage').value = window.psyI18n.language;
+    if (revision === languageRevision) {
+      window.psyI18n.setLanguage(state.settings.language);
+      $('#interfaceLanguage').value = window.psyI18n.language;
+    } else state.settings.language = window.psyI18n.language;
     state.agent = state.settings.agent;
     const available = state.agent.available;
     $('#agentModeLabel').textContent = available ? `Local · ${state.agent.models[0] || state.settings.model}` : 'Catalog search · Local AI offline';
@@ -507,7 +522,7 @@ $('#addFileButton').addEventListener('click', async () => {
 $('#addUrlButton').addEventListener('click', () => $('#urlDialog').showModal());
 $('#settingsButton').addEventListener('click', openSettings);
 $('#backupCard').addEventListener('click', openSettings);
-$('#allResourcesButton').addEventListener('click', () => { for (const field of ['category', 'language', 'clinicalTopic', 'audience', 'theoreticalApproach', 'query']) state[field] = ''; $('#searchInput').value = ''; render(); });
+$('#allResourcesButton').addEventListener('click', () => { for (const field of ['category', 'language', 'clinicalTopic', 'audience', 'theoreticalApproach', 'query', 'collection', 'readingStatus']) state[field] = ''; $('#searchInput').value = ''; render(); });
 
 $$('[data-close]').forEach(button => button.addEventListener('click', () => $(`#${button.dataset.close}`).close()));
 
@@ -677,10 +692,11 @@ async function restoreFrom(folder) {
     const result = await api.restoreBackup(folder);
     if (result.canceled) return;
     state.selectedId = null;
-    state.query = ''; state.category = ''; state.language = '';
+    for (const field of ['query','category','language','clinicalTopic','audience','theoreticalApproach','collection','readingStatus']) state[field] = '';
     $('#searchInput').value = '';
     for (const dialog of document.querySelectorAll('dialog[open]')) dialog.close();
     await loadResources();
+    document.dispatchEvent(new Event('library-restored'));
     toast('Library restored. Safety backup: ' + result.safetyFolder);
   } catch (error) { toast(errorMessage(error), true); }
   finally { button.disabled = false; await refreshBackupStatus(); }
@@ -776,13 +792,17 @@ $('#setupUseModel').addEventListener('click', async () => {
 $('#modelInput').addEventListener('input', () => { $('#settingsModelCommand').textContent = `ollama pull ${$('#modelInput').value.trim() || 'qwen3:4b'}`; });
 $('#interfaceLanguage').addEventListener('change', async event => {
   const previous = window.psyI18n.language;
+  const requested = event.target.value;
+  languageRevision++;
   try {
-    await api.updateSettings({ language: event.target.value });
-    window.psyI18n.setLanguage(event.target.value);
-    if (state.settings) state.settings.language = event.target.value;
+    await api.updateSettings({ language: requested });
+    window.psyI18n.setLanguage(requested);
+    $('#interfaceLanguage').value = requested;
+    if (state.settings) state.settings.language = requested;
   } catch (error) { event.target.value = previous; toast(errorMessage(error), true); }
 });
 api.onLanguageChange?.(language => {
+  languageRevision++;
   window.psyI18n.setLanguage(language);
   $('#interfaceLanguage').value = language;
 });

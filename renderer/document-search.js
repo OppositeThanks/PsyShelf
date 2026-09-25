@@ -44,6 +44,8 @@
     const resourceId = el('documentSearchSelected').checked ? currentResource()?.id : null;
     if (el('documentSearchSelected').checked && !resourceId) { el('documentSearchStatus').textContent = 'Select a resource in the library first.'; return; }
     const resourceIds = state.resources.filter(resource =>
+      (!state.collection || (resource.collections || []).includes(state.collection)) &&
+      (!state.readingStatus || (resource.readingStatus || 'to-read') === state.readingStatus) &&
       (!state.category || resource.categories.includes(state.category)) &&
       (!state.language || resource.languages.includes(state.language)) &&
       ['clinicalTopic', 'audience', 'theoreticalApproach'].every(field => !state[field] || resource[field] === state[field])

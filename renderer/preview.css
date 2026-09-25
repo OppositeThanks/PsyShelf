@@ -9,3 +9,17 @@ iframe { display: block; width: 100%; height: 100%; border: 0; background: white
 img, video { display: block; width: 100%; height: 100%; object-fit: contain; }
 audio { display: block; width: calc(100% - 40px); margin: 20px; }
 pre { margin: 20px; white-space: pre-wrap; overflow-wrap: anywhere; font: 13px/1.6 Consolas, monospace; }
+.pdf-toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 10px; border-bottom: 1px solid #ddd; }
+.pdf-toolbar form { display: flex; align-items: center; gap: 6px; }
+.pdf-toolbar input { width: 70px; }
+.pdf-layout { display: flex; gap: 20px; align-items: start; padding: 20px; }
+#pdfSheet { position: relative; flex: none; background: white; box-shadow: 0 2px 8px #0002; }
+#pdfCanvas { display: block; }
+#pdfText { position: absolute; inset: 0; }
+.pdf-notes { min-width: 230px; width: 270px; max-width: 300px; }
+.pdf-notes label { display: grid; gap: 6px; margin: 12px 0; }
+.pdf-notes textarea { width: 100%; }
+.pdf-notes blockquote { margin: 8px 0; background: #fff2b8; }
+.pdf-notes p, .pdf-notes blockquote { white-space: pre-wrap; overflow-wrap: anywhere; }
+::highlight(annotations) { background-color: #ffe17b99; }
+@media (max-width: 700px) { .pdf-layout { flex-direction: column; } .pdf-notes { max-width: 760px; width: 100%; } }

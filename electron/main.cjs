@@ -17,7 +17,7 @@ let updates;
 let updateTimer;
 let initialUpdateTimer;
 const { translate } = require('../renderer/i18n.js');
-const localizedDialog = Object.fromEntries(['showOpenDialog', 'showMessageBox'].map(method => [method, (window, options) => {
+const localizedDialog = Object.fromEntries(['showOpenDialog', 'showMessageBox', 'showSaveDialog'].map(method => [method, (window, options) => {
   const t = text => translate(text, settings?.language || 'English');
   const translated = { ...options };
   for (const key of ['title', 'message', 'detail', 'buttonLabel']) if (typeof options[key] === 'string') translated[key] = t(options[key]);
@@ -458,7 +458,7 @@ function registerHandlers() {
     if (!options || typeof options !== 'object' || !['eng', 'fra', 'spa'].includes(options.language) || typeof options.ocr !== 'boolean') throw new Error('Invalid document search options.');
     if (options.resourceIds !== undefined && (!Array.isArray(options.resourceIds) || options.resourceIds.some(id => typeof id !== 'string'))) throw new Error('Invalid document search options.');
     const resources = listResources().filter(resource => (!options.resourceId || resource.id === options.resourceId) && (!options.resourceIds || options.resourceIds.includes(resource.id)));
-    return documentSearch.run(resources, query, { ocr: options.ocr, language: options.language });
+    return documentSearch.run(resources, query, { ocr: options.ocr, language: options.language, cacheDir: path.join(app.getPath('userData'), 'document-index') });
   });
   ipcMain.handle('documents:cancel', async () => { await documentSearch.cancel(); return { cancelled: true }; });
   ipcMain.handle('updates:status', () => ({ ...updates.snapshot(), automatic: settings.checkUpdates !== false }));
@@ -478,11 +478,15 @@ function registerHandlers() {
     return { shown: true };
   });
   const handle = (channel, callback) => ipcMain.handle(channel, async (...args) => {
-    const mutates = /^(resources:(add-files|add-url|update|delete)|agent:(analyze|review-correction|override-correction))$/.test(channel);
+    const mutates = /^(resources:(add-files|add-url|update|delete)|agent:(analyze|review-correction|override-correction)|library:(save-searches|bulk|relink)|preview:save-reading)$/.test(channel);
     if (mutates && restoreLocked) throw new Error('Library changes are paused while a backup is being restored.');
     if (mutates) activeOperations++;
     try { return await callback(...args); } finally { if (mutates) activeOperations--; }
   });
+  require('../src/library-tools.cjs').registerLibraryTools({ handle, getDb: () => db, listResources, getResource, updateResource,
+    changed: () => { scheduleBackup(); if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('library:changed'); },
+    dialog: localizedDialog, window: () => mainWindow, cacheDir: () => path.join(app.getPath('userData'), 'document-index'),
+    cancelSearch: () => documentSearch.cancel(), previewResources, managedFolder: () => managedLibraryPath });
   handle('resources:open-preview', async (_event, id, page = null) => {
     if (page !== null && (!Number.isInteger(page) || page < 1 || page > 100000)) throw new Error('Invalid source page.');
     const resource = getResource(id);
@@ -493,8 +497,8 @@ function registerHandlers() {
       webPreferences: { preload: path.join(__dirname, 'preview-preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true }
     });
     const senderId = previewWindow.webContents.id;
-    previewResources.set(senderId, { ...resource, sourcePage: page });
-    previewWindow.on('closed', () => previewResources.delete(senderId));
+    previewResources.set(senderId, { ...resource, sourcePage: page || resource.lastPage || 1 });
+    previewWindow.on('closed', () => { previewResources.delete(senderId); if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('library:changed'); });
     previewWindow.setMenuBarVisibility(false);
     previewWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
     previewWindow.webContents.on('will-navigate', event => event.preventDefault());
@@ -736,7 +740,7 @@ function registerHandlers() {
     if (chatBusy) throw new Error('An answer is already being prepared.');
     chatBusy = true;
     try {
-      const evidence = await searchEvidence(listResources(), message);
+      const evidence = await searchEvidence(listResources(), message, { cacheDir: path.join(app.getPath('userData'), 'document-index') });
       if (!evidence.sources.length) return { ...evidence, claims: [], mode: 'no-evidence' };
       try {
         const content = await callOllama([

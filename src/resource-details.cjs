@@ -12,6 +12,6 @@ function normalizeDetails(input = {}, current = {}) {
   for (const field of ['clinicalTopic', 'theoreticalApproach', 'audience', 'personalNotes']) {
     result[field] = String(input[field] === undefined ? current[field] ?? '' : input[field] ?? '').trim();
   }
-  return result;
+  return { ...result, ...require('./reading.cjs').normalizeReading(input, current) };
 }
 module.exports = { normalizeDetails };

@@ -53,8 +53,16 @@ function inspectBackup(folder, check = () => {}) {
     }
     const schema = database.prepare("SELECT type, name FROM sqlite_master WHERE name NOT LIKE 'sqlite_%'").all();
     if (schema.some(item => ['trigger', 'view'].includes(item.type) ||
-      (item.type === 'table' && !['resources', 'corrections'].includes(item.name)))) {
+      (item.type === 'table' && !['resources', 'corrections', 'library_preferences'].includes(item.name)))) {
       throw new Error('This backup uses an unsupported database schema.');
+    }
+    if (schema.some(item => item.name === 'library_preferences')) {
+      const columns = database.prepare('PRAGMA table_info(library_preferences)').all().map(c => c.name);
+      if (columns.length !== 2 || !columns.includes('key') || !columns.includes('value')) throw new Error('This is not a compatible PsyShelf backup.');
+      for (const row of database.prepare('SELECT * FROM library_preferences').all()) {
+        if (row.key !== 'saved-searches') throw new Error('This is not a compatible PsyShelf backup.');
+        require('./library-tools.cjs').savedSearches(JSON.parse(row.value));
+      }
     }
     for (const [table, required] of [['resources', RESOURCE_COLUMNS], ['corrections', CORRECTION_COLUMNS]]) {
       const columns = database.prepare(`PRAGMA table_info(${table})`).all().map(item => item.name);
@@ -77,6 +85,7 @@ function inspectBackup(folder, check = () => {}) {
       if (row.details !== undefined) {
         const details = JSON.parse(row.details);
         if (!details || typeof details !== 'object' || Array.isArray(details)) throw new Error('Invalid resource details.');
+        require('./reading.cjs').normalizeReading(details);
         for (const [field, max] of [['rating', 5], ['publicationYear', 9999]]) {
           const raw = details[field];
           if (raw !== undefined && raw !== null && raw !== '' &&

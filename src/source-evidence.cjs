@@ -56,7 +56,7 @@ async function extractDocument(filename, options = {}) {
 }
 
 // Retrieval is lexical. A source identifier is assigned only to text actually extracted locally.
-async function retrieve(resources, query) {
+async function retrieve(resources, query, options = {}) {
   const terms = termsFor(query);
   const ranked = resources.map(resource => ({ resource, score: score([resource.title, resource.description, ...(resource.categories || [])].join(' '), terms) })).sort((a,b) => b.score - a.score);
   const candidates = [];
@@ -65,7 +65,7 @@ async function retrieve(resources, query) {
   for (const { resource, score: metadataScore } of ranked.slice(0, LIMITS.files)) {
     let extracted = { pages: [] };
     if (resource.filePath) {
-      try { extracted = await extractDocument(resource.filePath); }
+      try { extracted = await require('./document-index.cjs').indexedDocument(resource.filePath, options, extractDocument); }
       catch { extracted = { pages: [], warning: 'File unreadable, missing, or password-protected.' }; }
       if (extracted.warning) warnings.push({ title: resource.title, message: extracted.warning });
     }
