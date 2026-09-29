@@ -88,7 +88,7 @@ function toast(message, error = false) {
 }
 
 function errorMessage(error) {
-  return error?.message || String(error || 'Something went wrong.');
+  return String(error?.message || error || 'Something went wrong.').replace(/^Error invoking remote method '[^']+': (?:Error: )?/, '');
 }
 
 function currentResource() {
@@ -337,7 +337,8 @@ function renderDetails() {
       <section class="detail-section">
         <h4>Share</h4>
         <label class="share-permission"><input id="includeFile" type="checkbox" ${resource.filePath ? '' : 'disabled'}><span>Include the file. I confirm that copyright or permission allows me to share it.</span></label>
-        <button class="button ghost" id="shareButton">Export shareable entry</button>
+        <label class="share-permission"><input id="includeNotes" type="checkbox"><span>Include my personal notes in this export</span></label>
+        <button class="button ghost" id="shareButton">Review export</button>
       </section>
       <section class="detail-section"><button class="button danger" id="deleteButton">Remove entry</button></section>
     </div>`;
@@ -398,13 +399,35 @@ function openCorrection(resource) {
   $('#correctionDialog').showModal();
 }
 
+let shareReviewToken = null;
 async function shareSelected(resource) {
-  const includeFile = $('#includeFile').checked;
+  if ($('#shareReviewDialog').open) return;
+  const button = $('#shareButton');
+  button.disabled = true;
   try {
-    const result = await api.shareResource(resource.id, includeFile);
+    if (!api.previewShare) throw new Error('Sharing is available in the Windows desktop app.');
+    const review = await api.previewShare(resource.id, { includeFile: $('#includeFile').checked, includeNotes: $('#includeNotes').checked });
+    shareReviewToken = review.token;
+    $('#shareReviewContent').textContent = JSON.stringify(review.metadata, null, 2);
+    $('#shareNotesStatus').textContent = Object.hasOwn(review.metadata, 'personalNotes') ? 'Personal notes will be included.' : 'Personal notes are excluded.';
+    $('#shareAttachmentStatus').textContent = review.metadata.attachment ? 'The attachment named below will be included.' : 'No attachment will be included.';
+    $('#shareReviewDialog').showModal();
+  } catch (error) { toast(errorMessage(error), true); }
+  finally { button.disabled = false; }
+}
+$('#shareReviewDialog').addEventListener('close', () => { shareReviewToken = null; });
+$('#confirmShare').addEventListener('click', async () => {
+  if (!shareReviewToken) return;
+  const button = $('#confirmShare');
+  button.disabled = true;
+  const token = shareReviewToken;
+  shareReviewToken = null;
+  try {
+    const result = await api.shareResource(token);
     if (!result.canceled) toast(`Share package created${result.fileIncluded ? ' with its file' : ''}.`);
   } catch (error) { toast(errorMessage(error), true); }
-}
+  finally { button.disabled = false; $('#shareReviewDialog').close(); }
+});
 
 async function deleteSelected(resource) {
   const confirmation = $('#deleteDialog');

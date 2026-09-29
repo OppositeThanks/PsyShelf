@@ -15,8 +15,8 @@ audience, a 1–5 rating, and personal notes. Use **Edit details & notes** in a 
 details panel, or fill these optional fields when adding a link. These fields save
 directly without AI review. Search includes year, topic, approach, audience and notes;
 the sort menu supports highest rating and newest publication. Existing libraries are
-migrated automatically. The fields are included in backups and shared metadata exports,
-including personal notes.
+migrated automatically. Backups include these fields and personal notes. Shared exports exclude
+personal notes unless you explicitly select them for that export.
 
 - Store any file format as either a reference to its current location or a managed copy.
 - Add web links with title, authors, categories, languages, and a short description.
@@ -82,6 +82,8 @@ Run the checks with:
 ```powershell
 pnpm test
 ```
+
+Run `pnpm run test:security` to exercise the actual Electron security boundaries, file-opening guards, previews, export review, and language switching in an isolated temporary library. The Windows release workflow runs both test commands before packaging.
 
 Create a new Windows installer with:
 
@@ -167,7 +169,7 @@ Current limits: lexical matching (not semantic or cross-language search), up to 
 
 ## File previews and helper recommendations
 
-Every format is accepted and stored. Built-in preview support is intentionally limited to formats Chromium can render safely and consistently. For other formats, the Preview Helper offers Windows opening plus verified official links to free tools:
+Every format is accepted and stored, but executable files, scripts, and shortcuts cannot be launched from PsyShelf. Built-in preview support is intentionally limited to formats Chromium can render safely and consistently. For other document formats, the Preview Helper offers Windows opening (with a warning for unfamiliar or potentially active formats) plus verified official links to free tools:
 
 - Office and OpenDocument files: [LibreOffice](https://www.libreoffice.org/download/download-libreoffice/)
 - EPUB and other e-books: [calibre](https://calibre-ebook.com/download_windows)
@@ -223,8 +225,26 @@ scripts/    Automated Electron smoke test
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for data boundaries and the mobile-ready direction.
 
+## Sharing and security
+
+Choose **Review export** in a resource’s details. Personal notes and attachments are unchecked by default. The review shows the exact JSON fields that will be written, states whether notes are included, and names any selected attachment. **Export reviewed entry** then asks for a destination folder. Review tokens expire after five minutes and cannot be reused; the reviewed metadata is kept unchanged even if the entry is edited before export. If you cancel folder selection, review the entry again before retrying.
+
+Exports use an explicit field allowlist and omit internal IDs, storage details, and local source paths. Descriptions and URLs may still contain information you entered: review them. If included, an attachment is copied without cleaning its contents or embedded metadata. Full backups still include personal notes. Previously created exports are not changed.
+
+Both **Open** and preview **Open with Windows** reject executable/script/shortcut extensions, unsafe Windows path forms (including network paths and alternate data streams), and common executable signatures disguised as documents. Unfamiliar formats and macro-enabled Office documents require an explicit warning confirmation, with Cancel selected by default. These checks do not scan for malware or guarantee that a document is harmless; keep Windows and document viewers updated.
+
+Every privileged IPC handler verifies the exact local app page, the sending window, and its top-level frame. Preview windows have access only to preview operations. Both window types block unsolicited navigation, popups, and webviews. Browser permissions are denied except for plain clipboard writing by the main app page, which supports the existing Copy buttons. Content Security Policies block inline scripts, evaluation, renderer network connections, and remote frames. Inline styles remain allowed for dynamic resource colors and PDF text positioning. The PDF reader uses a local worker. Websites are shown as links and open only through an explicit action in the default browser; they are no longer embedded in app previews. Local PDF, text, image, audio, and video previews remain available.
+
+These protections do not add storage encryption, an app lock, or installer signing. The database, managed files, and backups remain unencrypted by PsyShelf.
+
 ## Update history
 
+### 2026-09-29 — security hardening (source update; installer pending CI)
+
+- Exclude notes and internal paths from exports by default; add a translated review screen with optional notes and attachment inclusion.
+- Guard both file-opening routes against executable, script, shortcut, and unsafe-path launches; confirm unfamiliar formats.
+- Validate all IPC senders, restrict navigation and permissions, add CSPs, and move website previews to the default browser.
+- Add security regression tests and a real Electron smoke test to Windows release checks.
 ### 2026-09-25 — reading and library organization
 
 - Added reading status, remembered PDF pages, bookmarks, collections, and saved searches with OCR settings.

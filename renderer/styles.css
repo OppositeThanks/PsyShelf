@@ -263,6 +263,7 @@ dialog::backdrop { background: rgba(25,38,33,.45); backdrop-filter: blur(4px); }
 #documentSearchForm summary { cursor: pointer; }
 #documentSearchStatus { font-size: 12px; }
 .search-active .empty-state { padding: 20px; }
+#shareReviewContent { max-height: 36vh; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; padding: 14px; background: var(--green-3); border-radius: 8px; font-size: 12px; }
 .card-access { flex-wrap: wrap; }
 @media (max-width: 1200px) {
   .app-shell.inspector-collapsed { grid-template-columns: 210px minmax(0, 1fr); }

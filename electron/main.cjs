@@ -4,6 +4,10 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 const crypto = require('node:crypto');
+const { assertTrustedSender, protectWindow, protectSession } = require('./security.cjs');
+const { openCheckedFile } = require('../src/file-security.cjs');
+const { shareMetadata } = require('../src/share-policy.cjs');
+let pendingSharePlan = null;
 
 const seedData = require('../src/seed-data.cjs');
 const backups = require('../src/backup.cjs');
@@ -433,6 +437,20 @@ async function restoreBackup(savedFolder) {
   } finally { restoreLocked = false; restoreDialogOpen = false; }
 }
 
+async function openAttachment(filename) {
+  return openCheckedFile(filename, {
+    open: file => shell.openPath(file),
+    confirm: async file => {
+      const result = await localizedDialog.showMessageBox(mainWindow, {
+        type: 'warning', title: 'Open an unverified file?',
+        message: 'This file type may contain active content. Open it only if you trust its source.',
+        detail: file, buttons: ['Cancel', 'Open with Windows'], defaultId: 0, cancelId: 0, noLink: true
+      });
+      return result.response === 1;
+    }
+  });
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1460,
@@ -449,39 +467,42 @@ function createWindow() {
     }
   });
   mainWindow.setMenuBarVisibility(false);
+  protectWindow(mainWindow.webContents);
+  protectSession(mainWindow.webContents.session);
   mainWindow.loadFile(path.join(__dirname, '..', 'renderer', 'index.html'));
 }
 
 function registerHandlers() {
-  ipcMain.handle('documents:search', (_event, query, options = {}) => {
+  const handle = (channel, callback) => ipcMain.handle(channel, async (event, ...args) => {
+    assertTrustedSender(event, channel, mainWindow?.webContents, previewResources);
+    const mutates = /^(resources:(add-files|add-url|update|delete)|agent:(analyze|review-correction|override-correction)|library:(save-searches|bulk|relink)|preview:save-reading)$/.test(channel);
+    if (mutates && restoreLocked) throw new Error('Library changes are paused while a backup is being restored.');
+    if (mutates) activeOperations++;
+    try { return await callback(event, ...args); } finally { if (mutates) activeOperations--; }
+  });
+  handle('documents:search', (_event, query, options = {}) => {
     if (typeof query !== 'string' || !query.trim() || query.length > 4000) throw new Error('Enter search terms of up to 4,000 characters.');
     if (!options || typeof options !== 'object' || !['eng', 'fra', 'spa'].includes(options.language) || typeof options.ocr !== 'boolean') throw new Error('Invalid document search options.');
     if (options.resourceIds !== undefined && (!Array.isArray(options.resourceIds) || options.resourceIds.some(id => typeof id !== 'string'))) throw new Error('Invalid document search options.');
     const resources = listResources().filter(resource => (!options.resourceId || resource.id === options.resourceId) && (!options.resourceIds || options.resourceIds.includes(resource.id)));
     return documentSearch.run(resources, query, { ocr: options.ocr, language: options.language, cacheDir: path.join(app.getPath('userData'), 'document-index') });
   });
-  ipcMain.handle('documents:cancel', async () => { await documentSearch.cancel(); return { cancelled: true }; });
-  ipcMain.handle('updates:status', () => ({ ...updates.snapshot(), automatic: settings.checkUpdates !== false }));
-  ipcMain.handle('updates:check', () => updates.check());
-  ipcMain.handle('updates:download', () => updates.download());
-  ipcMain.handle('updates:cancel', () => { updates.cancel(); return { cancelled: true }; });
-  ipcMain.handle('updates:automatic', (_event, enabled) => {
+  handle('documents:cancel', async () => { await documentSearch.cancel(); return { cancelled: true }; });
+  handle('updates:status', () => ({ ...updates.snapshot(), automatic: settings.checkUpdates !== false }));
+  handle('updates:check', () => updates.check());
+  handle('updates:download', () => updates.download());
+  handle('updates:cancel', () => { updates.cancel(); return { cancelled: true }; });
+  handle('updates:automatic', (_event, enabled) => {
     if (typeof enabled !== 'boolean') throw new Error('Invalid update preference.');
     settings.checkUpdates = enabled;
     writeSettings();
     return { automatic: enabled };
   });
-  ipcMain.handle('updates:show-download', async () => {
+  handle('updates:show-download', async () => {
     const file = await updates.downloadedFile();
     if (!file) throw new Error('The downloaded installer was moved or removed. Download it again.');
     shell.showItemInFolder(file);
     return { shown: true };
-  });
-  const handle = (channel, callback) => ipcMain.handle(channel, async (...args) => {
-    const mutates = /^(resources:(add-files|add-url|update|delete)|agent:(analyze|review-correction|override-correction)|library:(save-searches|bulk|relink)|preview:save-reading)$/.test(channel);
-    if (mutates && restoreLocked) throw new Error('Library changes are paused while a backup is being restored.');
-    if (mutates) activeOperations++;
-    try { return await callback(...args); } finally { if (mutates) activeOperations--; }
   });
   require('../src/library-tools.cjs').registerLibraryTools({ handle, getDb: () => db, listResources, getResource, updateResource,
     changed: () => { scheduleBackup(); if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('library:changed'); },
@@ -500,8 +521,7 @@ function registerHandlers() {
     previewResources.set(senderId, { ...resource, sourcePage: page || resource.lastPage || 1 });
     previewWindow.on('closed', () => { previewResources.delete(senderId); if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('library:changed'); });
     previewWindow.setMenuBarVisibility(false);
-    previewWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
-    previewWindow.webContents.on('will-navigate', event => event.preventDefault());
+    protectWindow(previewWindow.webContents);
     await previewWindow.loadFile(path.join(__dirname, '..', 'renderer', 'preview.html'));
     return { opened: true };
   });
@@ -524,9 +544,8 @@ function registerHandlers() {
       if (!url) throw new Error('Invalid link.');
       await shell.openExternal(url);
     } else {
-      if (!resource.filePath || !fs.existsSync(resource.filePath)) throw new Error('File not found.');
-      const error = await shell.openPath(resource.filePath);
-      if (error) throw new Error(error);
+      if (!resource.filePath) throw new Error('File not found.');
+      return openAttachment(resource.filePath);
     }
   });
   handle('setup:scan', async () => {
@@ -634,10 +653,8 @@ function registerHandlers() {
       await shell.openExternal(url);
       return { opened: true };
     }
-    if (!resource.filePath || !fs.existsSync(resource.filePath)) throw new Error('The referenced file could not be found.');
-    const error = await shell.openPath(resource.filePath);
-    if (error) throw new Error(error);
-    return { opened: true };
+    if (!resource.filePath) throw new Error('The referenced file could not be found.');
+    return openAttachment(resource.filePath);
   });
 
   handle('resources:preview', (_event, id) => {
@@ -656,16 +673,27 @@ function registerHandlers() {
     return response;
   });
 
-  handle('resources:share', async (_event, id, includeFile) => {
+  handle('resources:share-preview', (_event, id, options = {}) => {
     const resource = getResource(id);
     if (!resource) throw new Error('Resource not found.');
+    if (!options || typeof options.includeFile !== 'boolean' || typeof options.includeNotes !== 'boolean') throw new Error('Invalid sharing options.');
+    const plan = { token: randomId(), resource: structuredClone(resource), includeFile: options.includeFile,
+      includeNotes: options.includeNotes, sharedAt: now(), expires: Date.now() + 5 * 60 * 1000 };
+    pendingSharePlan = plan;
+    return { token: plan.token, metadata: shareMetadata(plan.resource, plan) };
+  });
+  handle('resources:share', async (_event, token) => {
+    const plan = pendingSharePlan;
+    if (!plan || typeof token !== 'string' || token !== plan.token || Date.now() > plan.expires) throw new Error('The export review expired. Review the entry again.');
+    pendingSharePlan = null;
     const selection = await localizedDialog.showOpenDialog(mainWindow, {
       title: 'Choose a folder for the shared entry',
       properties: ['openDirectory', 'createDirectory']
     });
     if (selection.canceled) return { canceled: true };
     return fileJobs.run('Export shared resource', job => job.task('share', {
-      root: selection.filePaths[0], resource, includeFile: Boolean(includeFile)
+      root: selection.filePaths[0], resource: plan.resource, includeFile: plan.includeFile,
+      includeNotes: plan.includeNotes, sharedAt: plan.sharedAt
     }));
   });
 
@@ -816,7 +844,7 @@ function registerHandlers() {
     return { accepted };
   });
   handle('settings:backup-status', () => getBackupStatus());
-  ipcMain.handle('settings:restore-backup', (_event, folder) => restoreBackup(folder));
+  handle('settings:restore-backup', (_event, folder) => restoreBackup(folder));
 
   handle('system:open-official-url', async (_event, value) => {
     const url = validateHttpUrl(value);

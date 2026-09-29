@@ -2,9 +2,10 @@ const title = document.querySelector('#title');
 const status = document.querySelector('#status');
 const content = document.querySelector('#content');
 const openOriginal = document.querySelector('#openOriginal');
+const errorText = error => String(error?.message || error).replace(/^Error invoking remote method '[^']+': (?:Error: )?/, '');
 openOriginal.addEventListener('click', async () => {
   try { await window.psyPreview.openOriginal(); }
-  catch (error) { status.hidden = false; status.textContent = error.message; }
+  catch (error) { status.hidden = false; status.textContent = errorText(error); }
 });
 window.psyPreview.getData().then(async data => {
   window.psyI18n.setLanguage(data.language);
@@ -29,20 +30,16 @@ window.psyPreview.getData().then(async data => {
     try { await window.startPdfReader(data); return; }
     catch { status.hidden = false; status.textContent = 'PDF preview unavailable. Try Open with Windows.'; return; }
   } else if (data.kind === 'url' && data.url) {
-    element = document.createElement('iframe');
-    element.title = data.title;
-    if (data.kind === 'url') {
-      element.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms');
-      element.referrerPolicy = 'no-referrer';
-      openOriginal.textContent = 'Open in browser';
-      status.hidden = false;
-      status.textContent = 'Some websites block embedded previews. If the page is blank or sign-in is required, choose Open in browser.';
-    }
-    element.src = data.url;
+    openOriginal.textContent = 'Open in browser';
+    status.hidden = false;
+    status.textContent = 'Websites open in your browser to keep web content separate from your library.';
+    element = document.createElement('p');
+    element.setAttribute('translate', 'no');
+    element.textContent = data.url;
   } else {
     status.hidden = false;
     status.textContent = data.kind === 'missing' ? 'The file is missing or this entry has no attached file to preview.' : `This format cannot be previewed here. ${data.helper?.reason || 'Try opening it with Windows.'}`;
   }
   if (element) content.append(element);
-}).catch(error => { status.hidden = false; status.textContent = `Preview unavailable: ${error.message}`; });
+}).catch(error => { status.hidden = false; status.textContent = errorText(error); });
 window.psyPreview.onLanguageChange(language => window.psyI18n.setLanguage(language));

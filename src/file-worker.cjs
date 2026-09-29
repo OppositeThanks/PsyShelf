@@ -5,6 +5,7 @@ const { DatabaseSync } = require('node:sqlite');
 const backups = require('./backup.cjs');
 const { copyFiles, copyTree } = require('./file-copy.cjs');
 const { safeFilename } = require('./library-utils.cjs');
+const { shareMetadata } = require('./share-policy.cjs');
 
 const flag = new Int32Array(workerData.signal);
 function check() {
@@ -58,14 +59,13 @@ function importFiles({ sources, managedLibraryPath, userData }) {
   } catch (error) { cleanup(userData, staging); throw error; }
 }
 
-function share({ root, resource, includeFile }) {
+function share({ root, resource, includeFile, includeNotes = false, sharedAt }) {
   const staging = fs.mkdtempSync(path.join(root, '.share-'));
   try {
-    const shared = { ...resource, filePath: undefined, sharedAt: new Date().toISOString() };
+    const shared = shareMetadata(resource, { includeFile, includeNotes, sharedAt });
     let fileIncluded = false;
     if (includeFile && resource.filePath) {
-      let name = path.basename(resource.filePath);
-      if (name.toLowerCase() === 'resource.json') name = 'attachment-resource.json';
+      const name = shared.attachment;
       copyFiles([{ source: resource.filePath, destination: path.join(staging, name) }], hooks);
       shared.attachment = name;
       fileIncluded = true;

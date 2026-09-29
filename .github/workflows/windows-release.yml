@@ -41,6 +41,9 @@ jobs:
       - name: Run tests
         run: pnpm test
 
+      - name: Verify Electron security boundaries
+        run: pnpm run test:security
+
       - name: Verify release tag matches package version
         if: github.ref_type == 'tag'
         shell: pwsh

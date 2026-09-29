@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'none'; object-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="color-scheme" content="light">
   <title>PsyShelf</title>
@@ -149,6 +150,18 @@
     </form>
   </dialog>
 
+  <dialog id="shareReviewDialog" aria-labelledby="shareReviewTitle">
+    <div class="dialog-card wide">
+      <button class="dialog-close" type="button" data-close="shareReviewDialog" aria-label="Close">×</button>
+      <h2 id="shareReviewTitle">Review export</h2>
+      <p>Only the fields below will be exported. Check descriptions and links for private information too.</p>
+      <p id="shareNotesStatus"></p>
+      <p id="shareAttachmentStatus"></p>
+      <pre id="shareReviewContent" translate="no"></pre>
+      <p>The attachment is copied as it is; its contents and embedded metadata are not cleaned.</p>
+      <div class="dialog-actions"><button class="button ghost" type="button" data-close="shareReviewDialog">Cancel</button><button class="button primary" type="button" id="confirmShare">Export reviewed entry</button></div>
+    </div>
+  </dialog>
   <dialog id="storageDialog">
     <form method="dialog" class="dialog-card">
       <button class="dialog-close" value="cancel" aria-label="Close">×</button>
