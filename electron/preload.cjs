@@ -1,6 +1,13 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('psyLibrary', {
+  securityStatus: () => ipcRenderer.invoke('security:status'),
+  configureLock: (password, minutes) => ipcRenderer.invoke('security:configure-lock', password, minutes),
+  disableLock: password => ipcRenderer.invoke('security:disable-lock', password),
+  lock: () => ipcRenderer.invoke('security:lock'),
+  unlock: password => ipcRenderer.invoke('security:unlock', password),
+  encryptStorage: () => ipcRenderer.invoke('security:encrypt-storage'),
+  encryptBackups: password => ipcRenderer.invoke('security:encrypt-backups', password),
   savedSearches: () => ipcRenderer.invoke('library:saved-searches'),
   saveSearches: value => ipcRenderer.invoke('library:save-searches', value),
   bulkEdit: (ids, patch) => ipcRenderer.invoke('library:bulk', ids, patch),
@@ -52,6 +59,6 @@ contextBridge.exposeInMainWorld('psyLibrary', {
     ipcRenderer.on('files:progress', listener);
     return () => ipcRenderer.removeListener('files:progress', listener);
   },
-  restoreBackup: folder => ipcRenderer.invoke('settings:restore-backup', folder),
+  restoreBackup: (folder, password) => ipcRenderer.invoke('settings:restore-backup', folder, password),
   openOfficialUrl: url => ipcRenderer.invoke('system:open-official-url', url)
 });

@@ -3,6 +3,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { DatabaseSync } = require('node:sqlite');
 const backups = require('./backup.cjs');
+const encrypted = require('./encrypted-backup.cjs');
 const { copyFiles, copyTree } = require('./file-copy.cjs');
 const { safeFilename } = require('./library-utils.cjs');
 const { shareMetadata } = require('./share-policy.cjs');
@@ -86,13 +87,14 @@ function execute(type, payload) {
   switch (type) {
     case 'snapshot': {
       const db = new DatabaseSync(payload.databasePath, { readOnly: true, timeout: 5000 });
-      try { return backups.createSnapshot({ ...payload, db, hooks }); }
+      try { return (payload.encryption ? encrypted : backups).createSnapshot({ ...payload, db, hooks }); }
       finally { db.close(); }
     }
     case 'inspect':
       progress({ phase: 'Checking backup' });
-      return backups.inspectBackup(payload.folder, check);
-    case 'prepare-restore': return backups.prepareRestore(payload.folder, payload.userData, hooks);
+      return encrypted.withDecrypted(payload, folder => backups.inspectBackup(folder, check), hooks);
+    case 'prepare-restore': return encrypted.withDecrypted(payload, folder => backups.prepareRestore(folder, payload.userData, hooks), hooks);
+    case 'derive-backup-key': return encrypted.deriveKey(payload.password, payload.salt).toString('base64');
     case 'cleanup-restore': return backups.discardStaging(payload.userData, payload.staging);
     case 'history': return { history: backups.listBackups(payload.root), safety: backups.listBackups(payload.safetyRoot) };
     case 'import': return importFiles(payload);

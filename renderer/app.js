@@ -712,7 +712,8 @@ async function restoreFrom(folder) {
   if (button.disabled) return;
   button.disabled = true;
   try {
-    const result = await api.restoreBackup(folder);
+    const password = $('#restorePassword').value; $('#restorePassword').value = '';
+    const result = await api.restoreBackup(folder, password || undefined);
     if (result.canceled) return;
     state.selectedId = null;
     for (const field of ['query','category','language','clinicalTopic','audience','theoreticalApproach','collection','readingStatus']) state[field] = '';

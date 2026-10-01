@@ -4,6 +4,7 @@ const path = require('node:path');
 
 const API = 'https://api.github.com/repos/OppositeThanks/PsyShelf/releases/latest';
 const ROOT = 'https://github.com/OppositeThanks/PsyShelf/releases/download/';
+const publisher = require('./publisher-verification.cjs');
 const MAX_INSTALLER = 1024 * 1024 * 1024;
 function versionParts(version) {
   if (!/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(version)) return null;
@@ -37,12 +38,12 @@ async function boundedText(response, limit) {
 }
 
 class AppUpdates {
-  constructor({ currentVersion, downloads, fetchImpl = (...args) => fetch(...args), notify = () => {}, supported = process.platform === 'win32' && process.arch === 'x64' }) {
-    this.currentVersion = currentVersion; this.downloads = downloads; this.fetch = fetchImpl; this.notify = notify; this.supported = supported;
+  constructor({ currentVersion, downloads, fetchImpl = (...args) => fetch(...args), notify = () => {}, verifyInstaller = publisher.verifyInstaller, supported = process.platform === 'win32' && process.arch === 'x64' }) {
+    this.verifyInstaller = verifyInstaller; this.currentVersion = currentVersion; this.downloads = downloads; this.fetch = fetchImpl; this.notify = notify; this.supported = supported;
     this.state = { status: supported ? 'idle' : 'unsupported', version: null, received: 0, total: 0, checkedAt: null, error: '', downloadedVersion: null };
     this.release = null; this.downloaded = null; this.controller = null;
   }
-  snapshot() { return { ...this.state, supported: this.supported }; }
+  snapshot() { return { ...this.state, supported: this.supported, publisherConfigured: this.verifyInstaller !== publisher.verifyInstaller || publisher.configured }; }
   publish(patch) { Object.assign(this.state, patch); this.notify(this.snapshot()); return this.snapshot(); }
   cancel() { this.controller?.abort(); }
   async stop() { this.cancel(); await this.done; }
@@ -80,7 +81,7 @@ class AppUpdates {
     finally { this.controller = null; this.finish?.(); }
   }
   failed(error, controller) {
-    const known = ['No compatible update installer is available yet.', 'The update server returned invalid information.', 'GitHub is limiting update checks. Try again later.', 'Could not contact GitHub. Check your connection and try again.', 'The installer checksum did not match. The download was removed.', 'The installer download was incomplete. Please try again.'];
+    const known = [publisher.NOT_CONFIGURED, publisher.INVALID, 'No compatible update installer is available yet.', 'The update server returned invalid information.', 'GitHub is limiting update checks. Try again later.', 'Could not contact GitHub. Check your connection and try again.', 'The installer checksum did not match. The download was removed.', 'The installer download was incomplete. Please try again.'];
     const message = controller.signal.aborted ? 'Update request cancelled.' : known.includes(error.message) ? error.message : 'Update failed. Check your connection and available disk space, then try again.';
     return this.publish({ status: 'error', error: message });
   }
@@ -93,6 +94,7 @@ class AppUpdates {
     let temporary, handle;
     this.publish({ status: 'downloading', error: '', received: 0, total: release.size });
     try {
+      if (this.verifyInstaller === publisher.verifyInstaller && !publisher.configured) throw new Error(publisher.NOT_CONFIGURED);
       const checksumResponse = await this.request(release.checksumUrl, signal);
       const checksum = (await boundedText(checksumResponse, 2048)).trim();
       const match = checksum.match(/^([a-fA-F0-9]{64})\s+\*?(.+)$/);
@@ -121,8 +123,10 @@ class AppUpdates {
       if (hash.digest('hex') !== match[1].toLowerCase()) throw new Error('The installer checksum did not match. The download was removed.');
       await handle.close(); handle = null;
       signal.throwIfAborted();
+      await this.verifyInstaller(temporary);
+      signal.throwIfAborted();
       await fs.rename(temporary, destination); temporary = null;
-      this.downloaded = { file: destination, version: release.version };
+      this.downloaded = { file: destination, version: release.version, sha256: match[1].toLowerCase() };
       return this.publish({ status: 'downloaded', received, downloadedVersion: release.version });
     } catch (error) { return this.failed(error, controller); }
     finally {
@@ -134,7 +138,13 @@ class AppUpdates {
   }
   async downloadedFile() {
     if (!this.downloaded) return null;
-    try { await fs.access(this.downloaded.file); return this.downloaded.file; }
+    try {
+      const hash = createHash('sha256');
+      for await (const chunk of require('node:fs').createReadStream(this.downloaded.file)) hash.update(chunk);
+      if (hash.digest('hex') !== this.downloaded.sha256) throw new Error('Changed installer');
+      await this.verifyInstaller(this.downloaded.file);
+      return this.downloaded.file;
+    }
     catch { this.downloaded = null; this.publish({ downloadedVersion: null, status: this.release ? 'available' : 'idle' }); return null; }
   }
 }

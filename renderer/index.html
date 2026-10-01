@@ -35,9 +35,9 @@
         <div id="languageFilters" class="filter-list"></div>
       </section>
       <section class="filter-section reading-filters">
-        <label>Reading status<select id="readingFilter"><option value="">All</option><option value="to-read">To read</option><option value="reading">Reading</option><option value="finished">Finished</option></select></label>
-        <label>Collections<select id="collectionFilter"><option value="">All</option></select></label>
-        <label>Saved searches<select id="savedSearchSelect"><option value="">Choose a saved search</option></select></label>
+        <label><span>Reading status</span><select id="readingFilter"><option value="">All</option><option value="to-read">To read</option><option value="reading">Reading</option><option value="finished">Finished</option></select></label>
+        <label><span>Collections</span><select id="collectionFilter"><option value="">All</option></select></label>
+        <label><span>Saved searches</span><select id="savedSearchSelect"><option value="">Choose a saved search</option></select></label>
         <button class="button compact" id="libraryToolsButton">Organize library</button>
       </section>
 
@@ -220,6 +220,26 @@
     <div class="dialog-card settings-card">
       <button class="dialog-close" type="button" data-close="settingsDialog" aria-label="Close">×</button>
       <p id="appVersion" translate="no"></p>
+      <section class="settings-section" id="privacySection">
+        <strong>Privacy & security</strong>
+        <p id="privacyStorageStatus"></p><p id="privacyBackupStatus"></p><p id="privacyLockStatus"></p>
+        <details><summary>Protect local storage</summary>
+          <p>Windows EFS encrypts the local database, managed files, search index and safety copies. It requires a supported Windows edition and NTFS drive. Referenced originals and previous exports are not encrypted.</p>
+          <p>Back up your Windows EFS certificate and private key using Manage file encryption certificates. Losing that key can make your library unreadable. This protection uses your Windows account, not your app-lock password.</p>
+          <label><input id="efsAcknowledgement" type="checkbox"> I understand that I must keep my Windows EFS recovery key safe.</label>
+          <button class="button ghost" type="button" id="enableStorageEncryption">Enable Windows encryption</button>
+        </details>
+        <p>Use a password of at least 12 characters. Keep backup passwords in a password manager: there is no password recovery. Old backups and exports keep their existing protection.</p>
+        <label class="field"><span>Password</span><input id="privacyPassword" type="password" autocomplete="new-password" maxlength="1024"></label>
+        <label class="field"><span>Confirm password</span><input id="privacyConfirm" type="password" autocomplete="new-password" maxlength="1024"></label>
+        <label><input id="backupAcknowledgement" type="checkbox"> I have saved my backup password securely.</label>
+        <div class="button-row"><button class="button ghost" type="button" id="enableBackupEncryption">Encrypt future backups</button></div>
+        <p>Encrypted backups use this password on another computer. Windows protects the saved backup key for automatic backups on this computer. Local snapshot preparation requires disk space in app storage.</p>
+        <label class="field"><span>Lock after computer inactivity</span><select id="autoLockMinutes"><option value="0">Manual only</option><option value="1">1 minute</option><option value="5" selected>5 minutes</option><option value="15">15 minutes</option><option value="30">30 minutes</option></select></label>
+        <p>App lock hides the library and closes previews on Windows lock or sleep. It does not encrypt files or block other programs running under your Windows account.</p>
+        <div class="button-row"><button class="button ghost" type="button" id="enableAppLock">Enable app lock</button><button class="button ghost" type="button" id="disableAppLock" hidden>Disable app lock</button><button class="button primary" type="button" id="lockApp" hidden>Lock now</button></div>
+        <p id="privacyError" role="alert"></p>
+      </section>
       <section class="settings-section" id="updatesSection">
         <strong>Application updates</strong>
         <p>Check GitHub for new versions. Download the installer here, then run it when you are ready.</p>
@@ -255,7 +275,7 @@
         <p>Backups are kept in dated folders. Restore replaces your library and saves a safety copy first. Referenced original files are not included.</p>
         <p id="backupStatus" role="status" aria-live="polite">Checking backup status…</p>
         <div class="button-row"><button class="button ghost" id="chooseBackup" type="button">Choose folder</button><button class="button primary" id="syncNow" type="button">Back up now</button><button class="button ghost" id="restoreBackup" type="button">Restore backup…</button></div>
-        <details><summary>Backup history &amp; safety copies</summary><p>Restore a saved copy below, or use Restore backup to browse another folder. Older backups are kept until you remove them.</p><ul id="backupHistory" style="max-height: 180px; overflow: auto; overflow-wrap: anywhere;"></ul></details>
+        <label class="field"><span>Backup password for restoration (optional on this computer)</span><input id="restorePassword" type="password" autocomplete="off" maxlength="1024"></label><details><summary>Backup history &amp; safety copies</summary><p>Restore a saved copy below, or use Restore backup to browse another folder. Older backups are kept until you remove them.</p><ul id="backupHistory" style="max-height: 180px; overflow: auto; overflow-wrap: anywhere;"></ul></details>
       </section>
     </div>
   </dialog>
@@ -332,6 +352,7 @@
   <script src="library-tools.js"></script>
   <script src="file-activity.js"></script>
   <script src="updates.js"></script>
+  <script src="privacy.js"></script>
   <script src="document-search.js"></script>
 </body>
 </html>

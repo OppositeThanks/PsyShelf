@@ -14,10 +14,11 @@
       unsupported: 'In-app downloads are available in the Windows x64 app.'
     };
     byId('updateStatus').textContent = state.status === 'error' ? state.error : messages[state.status];
+    if (state.publisherConfigured === false && state.status !== 'error') byId('updateStatus').textContent = 'Publisher verification is not configured. A signing certificate is required before in-app update downloads can be enabled.';
     byId('updateVersion').textContent = state.version ? 'PsyShelf ' + state.version : '';
     byId('checkUpdates').disabled = busy || !state.supported;
     byId('downloadUpdate').hidden = !state.version || state.downloadedVersion === state.version;
-    byId('downloadUpdate').disabled = busy || !state.supported;
+    byId('downloadUpdate').disabled = busy || !state.supported || state.publisherConfigured === false;
     byId('cancelUpdate').hidden = state.status !== 'downloading';
     byId('showUpdateDownload').hidden = !state.downloadedVersion;
     byId('updateProgress').hidden = state.status !== 'downloading';
