@@ -1,0 +1,28 @@
+name: Dependency security audit
+
+on:
+  schedule:
+    - cron: '23 7 * * *'
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+      - name: Install pnpm
+        run: npm install --global pnpm@10.15.1
+      - name: Validate locked dependencies without running package scripts
+        run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Audit all dependencies, including Electron and build tools
+        run: pnpm run audit:security

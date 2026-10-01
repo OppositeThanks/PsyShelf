@@ -225,6 +225,12 @@ scripts/    Automated Electron smoke test
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for data boundaries and the mobile-ready direction.
 
+## Dependency maintenance
+
+Run `pnpm run audit:security` to check the complete dependency tree, including Electron and installer tooling listed under development dependencies. Any reported vulnerability (low severity or higher), or an audit service failure, fails the check. Windows releases must pass this audit, unit tests, and Electron security tests before publication.
+
+The **Dependency security audit** GitHub workflow runs daily at 07:23 UTC, on main pushes and pull requests, and on manual request. It installs the frozen lockfile without executing dependency scripts. Dependabot checks npm packages (including development dependencies) and GitHub Actions weekly and opens update pull requests; updates are not automatically merged. Failed workflows appear in GitHub Actions; email notifications follow your GitHub notification settings. Audits cover known registry advisories and do not guarantee the absence of vulnerabilities.
+
 ## Sharing and security
 
 Choose **Review export** in a resource’s details. Personal notes and attachments are unchecked by default. The review shows the exact JSON fields that will be written, states whether notes are included, and names any selected attachment. **Export reviewed entry** then asks for a destination folder. Review tokens expire after five minutes and cannot be reused; the reviewed metadata is kept unchanged even if the entry is edited before export. If you cancel folder selection, review the entry again before retrying.
@@ -238,6 +244,13 @@ Every privileged IPC handler verifies the exact local app page, the sending wind
 These protections do not add storage encryption, an app lock, or installer signing. The database, managed files, and backups remain unencrypted by PsyShelf.
 
 ## Update history
+
+### 2026-10-01 — dependency security updates
+
+- Upgrade Electron from 43.2.0 to 43.7.6 and refresh transitive dependencies to patched versions.
+- Add a complete dependency audit that blocks vulnerable releases, daily/PR/push security checks, and weekly Dependabot update pull requests.
+- Wait for actual PDF rendering in the Electron security check instead of relying on a fixed startup delay.
+- These changes reach the downloadable installer after successful Windows CI.
 
 ### 2026-09-29 — security hardening (source update; installer pending CI)
 

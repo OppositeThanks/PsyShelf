@@ -55,8 +55,11 @@ async function run() {
   assert.match(await evaluate(textPreview, () => document.querySelector('#content').textContent), /Security smoke document/);
   textPreview.destroy();
   const pdfPreview = await preview(main, pdf.id);
-  // Allow the local PDF reader to render before checking policy violations.
-  await new Promise(resolve => setTimeout(resolve, 1200));
+  // Wait for actual rendering; cold-start worker initialization varies by runtime and CI host.
+  const deadline = Date.now() + 30000;
+  while (Date.now() < deadline && !(await evaluate(pdfPreview, () => document.querySelector('#pdfText')?.textContent.includes('Security smoke PDF')))) {
+    await new Promise(resolve => setTimeout(resolve, 100));
+  }
   assert.match(await evaluate(pdfPreview, () => document.querySelector('#pdfText')?.textContent || document.querySelector('#status').textContent), /Security smoke PDF/);
   assert.ok(await evaluate(pdfPreview, () => document.querySelector('#pdfCanvas').width > 0));
   await evaluate(pdfPreview, () => window.psyPreview.saveReading({ lastPage: 1 }));
@@ -105,7 +108,7 @@ async function run() {
   assert.equal(shellCalls, 0);
   console.log('PASS: real IPC isolation, CSP, file blocking, PDF/text/link previews, reviewed exports, token replay protection, and EN/FR/ES export UI.');
 }
-const timeout = setTimeout(() => { console.error('Security smoke test timed out'); app.exit(1); }, 45000);
+const timeout = setTimeout(() => { console.error('Security smoke test timed out'); app.exit(1); }, 90000);
 run().then(() => { clearTimeout(timeout); app.quit(); }, error => { console.error(error); clearTimeout(timeout); app.exit(1); });
 app.on('will-quit', () => {
   // Only this test-created directory is eligible for cleanup.
