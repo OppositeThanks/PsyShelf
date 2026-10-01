@@ -100,7 +100,7 @@ jobs:
           "$hash  PsyShelf-Setup-Windows.exe" | Set-Content -Encoding ascii "dist/PsyShelf-Setup-Windows.exe.sha256"
 
       - name: Upload workflow artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: PsyShelf-${{ github.run_number }}-Windows
           path: |
