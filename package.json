@@ -10,7 +10,8 @@
     "dev": "electron . --dev",
     "test": "node --test test/*.test.cjs",
     "test:security": "electron scripts/security-smoke.cjs",
-    "dist:win": "electron-builder --win nsis --publish never"
+    "dist:win": "electron-builder --win nsis --publish never",
+    "test:privacy": "electron scripts/privacy-smoke.cjs"
   },
   "devDependencies": {
     "electron": "43.2.0",

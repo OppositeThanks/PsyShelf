@@ -8,6 +8,8 @@ const { assertTrustedSender, protectWindow, protectSession } = require('./securi
 const { openCheckedFile } = require('../src/file-security.cjs');
 const { shareMetadata } = require('../src/share-policy.cjs');
 let pendingSharePlan = null;
+let privacy;
+const { Privacy } = require('./privacy.cjs');
 
 const seedData = require('../src/seed-data.cjs');
 const backups = require('../src/backup.cjs');
@@ -15,7 +17,7 @@ const removal = require('./uninstall.cjs');
 const { AppUpdates } = require('../src/app-updates.cjs');
 const { DocumentSearchJobs } = require('../src/document-search-jobs.cjs');
 const documentSearch = new DocumentSearchJobs(progress => {
-  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('documents:progress', progress);
+  if (mainWindow && !mainWindow.isDestroyed() && !privacy?.lock.locked) mainWindow.webContents.send('documents:progress', progress);
 });
 let updates;
 let updateTimer;
@@ -39,7 +41,7 @@ let restoreLocked = false;
 let quitting = false;
 let waitingToQuit = false;
 const fileJobs = new FileJobs(status => {
-  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('files:progress', status);
+  if (mainWindow && !mainWindow.isDestroyed() && !privacy?.lock.locked) mainWindow.webContents.send('files:progress', status);
 }, () => {
   if (backupPending && !quitting) {
     clearTimeout(backupTimer);
@@ -355,7 +357,7 @@ function scheduleBackup() {
 }
 
 async function flushAutomaticBackup() {
-  if (!backupPending || fileJobs.busy || restoreDialogOpen || quitting) return;
+  if (!backupPending || privacy?.busy || fileJobs.busy || restoreDialogOpen || quitting) return;
   try { await performBackup('Automatic backup'); }
   catch (error) { if (error.name !== 'AbortError') console.error('Automatic backup failed:', error); }
 }
@@ -366,7 +368,7 @@ async function performBackup(label = 'Backup') {
   clearTimeout(backupTimer);
   backupPending = false;
   try {
-    const result = await fileJobs.run(label, job => job.task('snapshot', { databasePath, managedLibraryPath,
+    const result = await fileJobs.run(label, job => job.task('snapshot', { databasePath, managedLibraryPath, userData: app.getPath('userData'), encryption: privacy.encryption(),
       root: path.join(settings.backupFolder, 'PsyShelf Backup'), version: app.getVersion() }));
     lastBackupError = '';
     return result;
@@ -381,7 +383,7 @@ async function getBackupStatus() {
   return { ...result, lastSuccessful: result.history[0]?.updatedAt || null, error: lastBackupError };
 }
 
-async function restoreBackup(savedFolder) {
+async function restoreBackup(savedFolder, password) {
   if (restoreDialogOpen) throw new Error('A restore dialog is already open.');
   restoreDialogOpen = true;
   try {
@@ -401,7 +403,7 @@ async function restoreBackup(savedFolder) {
         if (selected.canceled) return { canceled: true };
         folder = selected.filePaths[0];
       }
-      const summary = await job.task('inspect', { folder });
+      const summary = await job.task('inspect', { folder, userData: app.getPath('userData'), encryption: privacy.encryption(), password });
       job.phase('Waiting for confirmation');
       const answer = await localizedDialog.showMessageBox(mainWindow, {
         type: 'warning', title: 'Restore PsyShelf backup', message: 'Replace the current library with this backup?',
@@ -416,10 +418,10 @@ async function restoreBackup(savedFolder) {
       restoreLocked = true;
       clearTimeout(backupTimer);
       const userData = app.getPath('userData');
-      const prepared = await job.task('prepare-restore', { folder, userData });
+      const prepared = await job.task('prepare-restore', { folder, userData, encryption: privacy.encryption(), password });
       try {
         job.phase('Saving safety copy');
-        const safety = await job.task('snapshot', { databasePath, managedLibraryPath,
+        const safety = await job.task('snapshot', { databasePath, managedLibraryPath, userData: app.getPath('userData'), encryption: privacy.encryption(),
           root: path.join(userData, 'restore-safety'), version: app.getVersion(), kind: 'before-restore' });
         job.commit();
         for (const window of BrowserWindow.getAllWindows()) if (window !== mainWindow) window.close();
@@ -469,16 +471,26 @@ function createWindow() {
   mainWindow.setMenuBarVisibility(false);
   protectWindow(mainWindow.webContents);
   protectSession(mainWindow.webContents.session);
-  mainWindow.loadFile(path.join(__dirname, '..', 'renderer', 'index.html'));
+  mainWindow.loadFile(path.join(__dirname, '..', 'renderer', privacy?.lock.locked ? 'lock.html' : 'index.html'));
 }
 
 function registerHandlers() {
   const handle = (channel, callback) => ipcMain.handle(channel, async (event, ...args) => {
     assertTrustedSender(event, channel, mainWindow?.webContents, previewResources);
+    privacy.lock.assertAllowed(channel);
+    if (privacy.busy && !channel.startsWith('security:')) throw new Error('Wait for the current security operation to finish.');
+    const generation = privacy.generation;
     const mutates = /^(resources:(add-files|add-url|update|delete)|agent:(analyze|review-correction|override-correction)|library:(save-searches|bulk|relink)|preview:save-reading)$/.test(channel);
     if (mutates && restoreLocked) throw new Error('Library changes are paused while a backup is being restored.');
     if (mutates) activeOperations++;
-    try { return await callback(event, ...args); } finally { if (mutates) activeOperations--; }
+    try { const result = await callback(event, ...args); if (!channel.startsWith('security:') && generation !== privacy.generation) throw new Error('Unlock PsyShelf to continue.'); return result; } finally { if (mutates) activeOperations--; }
+  });
+  privacy.bind({ handle, mainWindow: () => mainWindow,
+    isBusy: () => activeOperations > 0 || fileJobs.busy || chatBusy || restoreDialogOpen || Boolean(documentSearch.job),
+    pause: async () => { restoreLocked = true; clearTimeout(backupTimer); if (db) { db.close(); db = null; } },
+    resume: async () => { if (!db) initDatabase(false); restoreLocked = false; },
+    cancelWork: async () => { pendingSharePlan = null; await Promise.all([documentSearch.cancel(), fileJobs.stop()]); },
+    lockPage: path.join(__dirname, '..', 'renderer', 'lock.html'), mainPage: path.join(__dirname, '..', 'renderer', 'index.html'), language: () => settings.language
   });
   handle('documents:search', (_event, query, options = {}) => {
     if (typeof query !== 'string' || !query.trim() || query.length > 4000) throw new Error('Enter search terms of up to 4,000 characters.');
@@ -844,7 +856,7 @@ function registerHandlers() {
     return { accepted };
   });
   handle('settings:backup-status', () => getBackupStatus());
-  handle('settings:restore-backup', (_event, folder) => restoreBackup(folder));
+  handle('settings:restore-backup', (_event, folder, password) => restoreBackup(folder, password));
 
   handle('system:open-official-url', async (_event, value) => {
     const url = validateHttpUrl(value);
@@ -854,9 +866,11 @@ function registerHandlers() {
   });
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   if (!hasInstanceLock) return;
   settings = readSettings();
+  privacy = new Privacy(app.getPath('userData'));
+  if (privacy.config.storageEncrypted) await privacy.initialize();
   backups.recoverRestore(app.getPath('userData'));
   const existingLibrary = fs.existsSync(path.join(app.getPath('userData'), 'psyshelf.sqlite'));
   initDatabase(!existingLibrary);
@@ -873,6 +887,9 @@ app.whenReady().then(() => {
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
+}).catch(error => {
+  dialog.showErrorBox(translate('Privacy & security', settings?.language || 'English'), translate(error.message, settings?.language || 'English'));
+  app.quit();
 });
 
 app.on('window-all-closed', () => {

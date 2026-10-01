@@ -44,6 +44,9 @@ jobs:
       - name: Verify Electron security boundaries
         run: pnpm run test:security
 
+      - name: Verify encryption and app lock
+        run: pnpm run test:privacy
+
       - name: Verify release tag matches package version
         if: github.ref_type == 'tag'
         shell: pwsh
@@ -65,7 +68,17 @@ jobs:
           }
           "version=$version" >> $env:GITHUB_OUTPUT
 
+      - name: Configure publisher verification
+        if: github.event_name != 'pull_request'
+        env:
+          PSYSHELF_PUBLISHER_THUMBPRINTS: ${{ vars.PSYSHELF_PUBLISHER_THUMBPRINTS }}
+          WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+        run: node scripts/configure-signing.cjs
+
       - name: Build Windows installer
+        env:
+          WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+          WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
         run: pnpm run dist:win
 
       - name: Verify and checksum executable
@@ -76,6 +89,8 @@ jobs:
           if (-not (Test-Path -LiteralPath $exe)) {
             throw "Expected build output was not created: $exe"
           }
+          node scripts/verify-release.cjs $exe
+          if ($LASTEXITCODE -ne 0) { throw "Installer publisher verification failed" }
           $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $exe).Hash.ToLowerInvariant()
           "$hash  PsyShelf-Setup-$version-Windows.exe" | Set-Content -Encoding ascii "$exe.sha256"
           Copy-Item -LiteralPath $exe -Destination "dist/PsyShelf-Setup-Windows.exe"

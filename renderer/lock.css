@@ -1,0 +1,4 @@
+body { display: grid; min-height: 100vh; place-items: center; margin: 0; }
+.lock-card { width: min(90vw, 440px); padding: 40px; border: 1px solid #d9e2dc; border-radius: 20px; background: #fffdf8; box-shadow: 0 20px 80px #263d3015; }
+.lock-card h1 { font-size: 2rem; }
+.lock-card form { display: grid; gap: 20px; }

@@ -37,6 +37,39 @@ function fixture(t) {
   return { root, userData, managedLibraryPath, get db() { return db; }, close, open, snapshot, add };
 }
 
+test('encrypted backups hide metadata and files, restore with a password, and reject tampering without changing the live database', async t => {
+  const encrypted = require('../src/encrypted-backup.cjs');
+  const f = fixture(t); f.add();
+  const password = 'a long test passphrase';
+  const salt = require('node:crypto').randomBytes(16).toString('hex');
+  const encryption = { salt, key: encrypted.deriveKey(password, salt).toString('base64') };
+  const root = path.join(f.root, 'encrypted-backups');
+  const result = await workerTask('snapshot', { databasePath: path.join(f.userData, 'psyshelf.sqlite'), managedLibraryPath: f.managedLibraryPath, userData: f.userData, root, encryption, version: 'test' });
+  assert.equal(listBackups(root).length, 1);
+  for (const name of fs.readdirSync(result.folder)) {
+    const bytes = fs.readFileSync(path.join(result.folder, name));
+    for (const secret of ['Keep my notes', 'Contents of managed', 'managed.txt', 'SQLite format']) assert.equal(bytes.includes(Buffer.from(secret)), false);
+  }
+  assert.equal(fs.existsSync(path.join(result.folder, 'psyshelf.sqlite')), false);
+  const prepared = await workerTask('prepare-restore', { folder: result.folder, userData: f.userData, password });
+  assert.equal(fs.readFileSync(path.join(prepared.staging, 'library-files', 'managed.txt'), 'utf8'), 'Contents of managed');
+  installRestore({ staging: prepared.staging, userData: f.userData, close: f.close, open: f.open });
+  assert.equal(JSON.parse(f.db.prepare('SELECT details FROM resources').get().details).personalNotes, 'Keep my notes');
+  await assert.rejects(workerTask('inspect', { folder: result.folder, userData: f.userData, password: 'wrong long password' }), /decrypt/);
+  await assert.rejects(workerTask('inspect', { folder: result.folder, userData: f.userData }), /password/);
+  const file = path.join(result.folder, '0.enc'); const bytes = fs.readFileSync(file); bytes[25] ^= 1; fs.writeFileSync(file, bytes);
+  await assert.rejects(workerTask('prepare-restore', { folder: result.folder, userData: f.userData, encryption }), /decrypt/);
+  assert.equal(f.db.prepare('SELECT COUNT(*) AS n FROM resources').get().n, 1);
+  assert.equal(fs.readdirSync(f.userData).some(n => n.startsWith('.encrypted-')), false);
+});
+
+test('encrypted snapshot cancellation never publishes plaintext or replaces older backups', async t => {
+  const f = fixture(t); f.add(); const root = path.join(f.root, 'encrypted-cancel'); fs.mkdirSync(root);
+  const signal = new SharedArrayBuffer(4); Atomics.store(new Int32Array(signal), 0, 1);
+  await assert.rejects(workerTask('snapshot', { databasePath: path.join(f.userData, 'psyshelf.sqlite'), managedLibraryPath: f.managedLibraryPath, userData: f.userData, root, encryption: { salt: 'a'.repeat(32), key: Buffer.alloc(32).toString('base64') } }, { signal }), /cancelled/);
+  assert.deepEqual(fs.readdirSync(root), []);
+});
+
 test('dated snapshots preserve history and committed WAL data', t => {
   const f = fixture(t);
   f.db.exec('PRAGMA journal_mode = WAL');

@@ -15,7 +15,7 @@ test('all translation entries include French and Spanish without conflicting dup
 });
 test('static interface copy has translations, including future additions', () => {
   const invariant = new Set(['PsyShelf','Ctrl K','URL','Français','Español','ollama pull qwen3:4b']);
-  for (const file of ['index.html','preview.html']) {
+  for (const file of ['index.html','preview.html','lock.html']) {
     const html=fs.readFileSync(path.join(__dirname,'../renderer',file),'utf8');
     for (const match of html.matchAll(/>([^<>]+)</g)) {
       const text=match[1].trim().replaceAll('&amp;','&');

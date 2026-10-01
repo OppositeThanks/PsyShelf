@@ -83,7 +83,7 @@ Run the checks with:
 pnpm test
 ```
 
-Run `pnpm run test:security` to exercise the actual Electron security boundaries, file-opening guards, previews, export review, and language switching in an isolated temporary library. The Windows release workflow runs both test commands before packaging.
+Run `pnpm run test:security` to exercise the actual Electron security boundaries, file-opening guards, previews, export review, and language switching in an isolated temporary library. Run `pnpm run test:privacy` for encrypted backup round trips, protected key storage, system locking, blocked IPC, unlocking, and translated lock screens. The Windows release workflow runs all three test commands before packaging.
 
 Create a new Windows installer with:
 
@@ -97,7 +97,7 @@ End users should use the direct `.exe` download above. GitHub's **Source code (z
 
 Every successful push to **main** now tests, builds, and publishes a Windows installer automatically. Manual runs on main also publish; pull requests only build. Build versions use the package major/minor and workflow run number (for example, 0.2.42). Check the installed version at the top of **Agent & backup settings**.
 
-The stable download link points to the latest successful release. Use **Agent & backup settings → Application updates** to check and download a newer installer. Run the downloaded EXE when you are ready; installation is never automatic. Versions before this feature need one manual download first. Failed builds leave the previous download available. GitHub Actions artifacts are ZIP archives intended for development; end users only need the release EXE.
+The stable download link points to the latest successful release. Use **Agent & backup settings → Application updates** to check for a newer installer. In-app downloads require a configured, pinned signing certificate; unsigned builds explain this and disable the download button. Until signing is configured, use the repository release page for manual downloads. Run the downloaded EXE when you are ready; installation is never automatic. Versions before this feature need one manual download first. Failed builds leave the previous download available. GitHub Actions artifacts are ZIP archives intended for development; end users only need the release EXE.
 
 Matching version tags can still publish explicit releases. Use a higher major/minor in package.json before starting a new release series.
 
@@ -235,9 +235,30 @@ Both **Open** and preview **Open with Windows** reject executable/script/shortcu
 
 Every privileged IPC handler verifies the exact local app page, the sending window, and its top-level frame. Preview windows have access only to preview operations. Both window types block unsolicited navigation, popups, and webviews. Browser permissions are denied except for plain clipboard writing by the main app page, which supports the existing Copy buttons. Content Security Policies block inline scripts, evaluation, renderer network connections, and remote frames. Inline styles remain allowed for dynamic resource colors and PDF text positioning. The PDF reader uses a local worker. Websites are shown as links and open only through an explicit action in the default browser; they are no longer embedded in app previews. Local PDF, text, image, audio, and video previews remain available.
 
-These protections do not add storage encryption, an app lock, or installer signing. The database, managed files, and backups remain unencrypted by PsyShelf.
+### Storage encryption, encrypted backups, and app lock
+
+Open **Settings → Privacy & security**. Features are opt-in; installing an update does not choose a password or encrypt existing user data automatically.
+
+- **Local storage:** Enable Windows encryption uses Windows EFS for the app-data directory, database and SQLite sidecars, managed files, search index, and local safety copies. It checks encrypted attributes and refuses to report success if encryption fails. EFS requires a supported Windows edition, filesystem, and policy. This development computer reports EFS as unsupported, so a successful EFS migration has not been validated here. A failure can leave some files encrypted; the app preserves them and shows the failure. Back up the Windows EFS certificate and private key before relying on this feature. See [Microsoft EFS/cipher recovery guidance](https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/cipher). External referenced originals, previously exported files, and older external backups are not migrated.
+- **Backups:** Enter and confirm a password of at least 12 characters, save it securely, and choose Encrypt future backups. New manual, automatic, and pre-restore safety snapshots use AES-256-GCM with unique nonces, authenticated file identities, and scrypt password derivation (N=131072, r=8, p=1). Resource metadata and filenames are encrypted; snapshot dates, salt, random identifiers, file counts, and ciphertext sizes remain visible. The destination receives ciphertext only. Preparation and restoration use temporary app-data storage, which is encrypted at rest only when EFS is enabled. A crash can leave temporary local data. Windows DPAPI protects the saved derived backup key for unattended backups on the same Windows account; the password is not stored. There is no password recovery. Old snapshots retain their original protection. Restore an older/different-computer encrypted backup by entering its original password in the restoration password field; leave it blank to use this computer’s saved key. Do not delete older passwords. This version does not change an existing backup-encryption password.
+- **App lock:** Configure a separate password and choose manual-only or 1/5/15/30 minutes of computer inactivity. The app also locks on Windows lock/suspend and starts locked thereafter. Locking replaces the library page, destroys preview windows, cancels document/file jobs where cancellation is still safe, and blocks privileged IPC. An operation past its commit boundary may finish; already opened external programs remain open. Unlock checks a salted scrypt hash and throttles attempts. To change the lock password or interval, enter the current password, disable app lock, then configure it again. App lock is a screen/privacy barrier, not a separate encryption key, OS access control, or protection against malware running as your Windows user.
+
+These controls do not wipe prior disk remnants or encrypt exports, clipboard contents, referenced files, external viewer caches, or the separate Ollama installation. Keep the Windows account and recovery keys protected. Do not place raw app storage in a cloud-sync folder; use encrypted backups for that purpose.
+
+### Preparing trusted installer signing
+
+No certificate has been purchased or installed. The source includes signing and publisher-verification integration, but releases remain unsigned until credentials are configured. In-app installer downloads now require both the published checksum and a valid Windows Authenticode signature from a certificate pinned in the installed app. The app rechecks the hash and publisher before revealing a downloaded installer. It never trusts a publisher identity supplied by the downloaded release itself.
+
+To activate the prepared electron-builder v26 certificate workflow, configure GitHub Actions secrets **WIN_CSC_LINK** (the signing provider’s supported PFX/base64 material) and **WIN_CSC_KEY_PASSWORD**, plus repository variable **PSYSHELF_PUBLISHER_THUMBPRINTS** (comma-separated uppercase SHA-1 certificate thumbprints, 40 hexadecimal characters each). These identify certificates; signatures use SHA-256. The workflow embeds the public pins, requires signing, and validates the installer before publication. Configure neither for explicitly unsigned builds; a partially configured identity fails the build. Never commit private keys. Hardware/cloud signing services need their provider-specific integration and credentials; no service has been activated. Add replacement certificate pins in a trusted release before rotating certificates. The first signed version requires a manual installation from a trusted source because existing unsigned versions cannot establish that signing identity. See [electron-builder v26 signing documentation](https://www.electron.build/v26/docs/features/code-signing/code-signing-win/).
 
 ## Update history
+
+### 2026-10-01 — privacy controls and signing preparation (source update; installer pending CI)
+
+- Add opt-in Windows EFS storage encryption, password-encrypted automatic/manual/safety backups, and password restoration on another computer.
+- Add startup, manual, inactivity, and Windows-session app locking with translated settings and lock screens.
+- Prepare certificate-backed signing in CI and fail closed on untrusted publisher identities in update downloads; no signing identity or paid service is configured.
+- Test encrypted restoration, wrong passwords, tampering, cancellation, protected key storage, and real Electron lock behavior. EFS success remains unverified because this computer does not support it.
 
 ### 2026-09-29 — security hardening (source update; installer pending CI)
 

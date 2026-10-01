@@ -1,6 +1,7 @@
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 const mainUrl = pathToFileURL(path.join(__dirname, '..', 'renderer', 'index.html')).href;
+const lockUrl = pathToFileURL(path.join(__dirname, '..', 'renderer', 'lock.html')).href;
 const previewUrl = pathToFileURL(path.join(__dirname, '..', 'renderer', 'preview.html')).href;
 
 function assertTrustedSender(event, channel, mainContents, previews) {
@@ -8,7 +9,7 @@ function assertTrustedSender(event, channel, mainContents, previews) {
   const frame = event?.senderFrame;
   const isPreview = ['preview:data', 'preview:open-original', 'preview:reading', 'preview:save-reading', 'preview:pdf-bytes'].includes(channel);
   if (!sender || sender.isDestroyed() || !frame || frame !== sender.mainFrame ||
-      frame.url !== (isPreview ? previewUrl : mainUrl) ||
+      !(frame.url === (isPreview ? previewUrl : mainUrl) || (['security:status', 'security:unlock'].includes(channel) && frame.url === lockUrl)) ||
       (isPreview ? !previews.has(sender.id) : sender !== mainContents)) {
     throw new Error('This window is not allowed to perform that action.');
   }

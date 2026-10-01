@@ -160,7 +160,7 @@ function listBackups(root) {
   return candidates.flatMap(folder => {
     try {
       const info = JSON.parse(fs.readFileSync(path.join(folder, 'backup-info.json'), 'utf8'));
-      if (!fs.existsSync(path.join(folder, DATABASE))) return [];
+      if (!fs.existsSync(path.join(folder, DATABASE)) && !(info.encrypted && fs.existsSync(path.join(folder, 'manifest.enc')))) return [];
       return [{ folder, updatedAt: info.updatedAt || null, kind: info.kind || 'backup' }];
     } catch { return []; }
   }).sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
