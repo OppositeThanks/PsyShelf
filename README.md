@@ -253,6 +253,10 @@ To activate the prepared electron-builder v26 certificate workflow, configure Gi
 
 ## Update history
 
+### 2026-10-01 — sidebar filter styling (source update; installer pending CI)
+
+- Match reading status, collections, and saved-search filters to the app’s rounded controls, muted section labels, and green palette. Add consistent spacing, hover and keyboard-focus states, and a matching Organize library button; retain native select behavior and high-contrast support.
+
 ### 2026-10-01 — privacy controls and signing preparation (source update; installer pending CI)
 
 - Add opt-in Windows EFS storage encryption, password-encrypted automatic/manual/safety backups, and password restoration on another computer.
