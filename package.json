@@ -17,7 +17,7 @@
     "test:privacy": "electron scripts/privacy-smoke.cjs"
   },
   "devDependencies": {
-    "electron": "43.7.6",
+    "electron": "44.4.5",
     "electron-builder": "26.15.3"
   },
   "build": {
