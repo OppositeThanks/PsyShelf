@@ -47,6 +47,9 @@ jobs:
       - name: Verify Electron security boundaries
         run: pnpm run test:security
 
+      - name: Verify demo-only first launch and empty-library persistence
+        run: pnpm run test:starter
+
       - name: Verify encryption and app lock
         run: pnpm run test:privacy
 

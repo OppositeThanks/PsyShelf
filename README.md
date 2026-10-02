@@ -2,7 +2,15 @@
 
 PsyShelf is a private, local-first Windows desktop library for professional psychology resources. It accepts any file type or web link, organizes each resource into multiple categories and languages, and keeps the metadata editable through a review-and-override workflow.
 
-The first launch includes the usable entries imported from the original `RECURSOS PSI` Google Sheet. Incomplete rows such as **The Help** and **Laufey** are deliberately marked as drafts instead of filling gaps with invented information.
+New installations include only five clearly labeled DEMO documents: attachment,
+classical conditioning, cognitive dissonance, cognitive reappraisal and working
+memory. The old `RECURSOS PSI` book/music/movie catalog is no longer preloaded.
+The demos are original English educational samples with source references, actual
+managed text files, descriptions, topics and a **DEMO** collection. Use Preview,
+Open, search and editable details to explore the app. They are examples, not patient
+records or clinical guidance. You can remove their entries through the usual
+confirmation; entry removal preserves managed files. They do not return on restart.
+Existing libraries and restored empty libraries are preserved during updates.
 
 ## What works in this MVP
 
@@ -84,6 +92,10 @@ pnpm test
 ```
 
 Run `pnpm run test:security` to exercise the actual Electron security boundaries, file-opening guards, previews, export review, and language switching in an isolated temporary library. Run `pnpm run test:privacy` for encrypted backup round trips, protected key storage, system locking, blocked IPC, unlocking, and translated lock screens. The Windows release workflow runs all three test commands before packaging.
+
+Run `pnpm run test:starter` to verify five packaged demo files on first launch,
+preservation of edited demo metadata/notes after restarting, and persistence of
+an intentionally emptied library. Windows release checks also run this test.
 
 Create a new Windows installer with:
 
@@ -281,6 +293,12 @@ No certificate has been purchased or installed. The source includes signing and 
 To activate the prepared electron-builder v26 certificate workflow, configure GitHub Actions secrets **WIN_CSC_LINK** (the signing provider’s supported PFX/base64 material) and **WIN_CSC_KEY_PASSWORD**, plus repository variable **PSYSHELF_PUBLISHER_THUMBPRINTS** (comma-separated uppercase SHA-1 certificate thumbprints, 40 hexadecimal characters each). These identify certificates; signatures use SHA-256. The workflow embeds the public pins, requires signing, and validates the installer before publication. Configure neither for explicitly unsigned builds; a partially configured identity fails the build. Never commit private keys. Hardware/cloud signing services need their provider-specific integration and credentials; no service has been activated. Add replacement certificate pins in a trusted release before rotating certificates. The first signed version requires a manual installation from a trusted source because existing unsigned versions cannot establish that signing identity. See [electron-builder v26 signing documentation](https://www.electron.build/v26/docs/features/code-signing/code-signing-win/).
 
 ## Update history
+
+### 2026-10-02 — demo-only starter library (source update; installer pending CI)
+
+- Replace the 17 Google Sheet starter entries with the five original DEMO documents, packaged as editable managed files for new installations only.
+- Include descriptions, concept topics and a DEMO collection; verify all five built-in previews and encrypted backup restoration.
+- Preserve existing user libraries and intentional empty libraries; do not delete older starter entries from existing installations automatically.
 
 ### 2026-10-02 — external viewer path fix (source update; installer pending CI)
 

@@ -1,0 +1,20 @@
+DEMO - Classical Conditioning
+Original educational sample prepared for a PsyShelf user walkthrough.
+2026-10-02 | Language: English | Topic: Learning psychology
+
+CONCEPT
+Classical conditioning describes learning an association between stimuli. A previously neutral cue can come to elicit a response after being paired with a stimulus that already elicits that response.
+
+EXAMPLE
+A dog hears a short tone before food arrives. After repeated pairings, the tone alone may elicit salivation. The food is the unconditioned stimulus; the tone becomes the conditioned stimulus.
+
+KEY DISTINCTION
+Classical conditioning concerns associations between stimuli. Operant conditioning concerns associations between behavior and its consequences.
+
+READING QUESTION
+Which cue predicts the event, and which response is being measured?
+
+REFERENCE
+OpenStax, Psychology 2e, section 6.2: Classical Conditioning.
+https://openstax.org/books/psychology-2e/pages/6-2-classical-conditioning
+This is an original short summary, not a downloaded research paper or clinical guidance.

@@ -31,7 +31,7 @@ async function run() {
     await page.waitForSelector('.resource-card');
     await page.waitForSelector('#agentSetupDialog[open]');
     await page.locator('#agentSetupDialog [data-close]').first().click();
-    assert.equal(await page.locator('.resource-card').count(), 17, 'Google Sheet seed count');
+    assert.equal(await page.locator('.resource-card').count(), 5, 'Demo starter count');
     await page.locator('.resource-card').first().click();
     await page.waitForSelector('.detail-hero h2');
     assert.ok(await page.locator('#correctButton').isVisible(), 'Correction action is visible');
@@ -45,7 +45,7 @@ async function run() {
     await page.locator('#urlForm [name="description"]').fill('Created during the automated desktop smoke test.');
     await page.locator('#urlForm [type="submit"]').click();
     try {
-      await page.waitForFunction(() => document.querySelectorAll('.resource-card').length === 18, null, { timeout: 8000 });
+      await page.waitForFunction(() => document.querySelectorAll('.resource-card').length === 6, null, { timeout: 8000 });
     } catch (error) {
       console.error('UI diagnostics:', await page.evaluate(() => ({
         cards: document.querySelectorAll('.resource-card').length,
@@ -56,7 +56,7 @@ async function run() {
       await page.screenshot({ path: path.join(artifactRoot, 'psyshelf-failure.png'), fullPage: true });
       throw error;
     }
-    assert.equal(await page.locator('.resource-card').count(), 18, 'URL creation updates the database and UI');
+    assert.equal(await page.locator('.resource-card').count(), 6, 'URL creation updates the database and UI');
 
     await page.locator('#settingsButton').click();
     await page.waitForSelector('#settingsDialog[open]');
@@ -77,7 +77,7 @@ async function run() {
     await page.locator('.library-view').evaluate(element => { element.scrollTop = 0; });
     await page.locator('#detailsPanel').evaluate(element => { element.scrollTop = 0; });
     await page.screenshot({ path: screenshotPath });
-    console.log(JSON.stringify({ passed: true, seedResources: 17, resourcesAfterCreate: 18, correctionOverride: true, screenshotPath }));
+    console.log(JSON.stringify({ passed: true, seedResources: 5, resourcesAfterCreate: 6, correctionOverride: true, screenshotPath }));
   } finally {
     await electronApp.close();
   }

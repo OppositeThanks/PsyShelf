@@ -10,6 +10,7 @@
     "dev": "electron . --dev",
     "test": "node --test test/*.test.cjs",
     "test:security": "electron scripts/security-smoke.cjs",
+    "test:starter": "node scripts/starter-smoke.cjs",
     "audit:security": "pnpm audit --audit-level=low",
     "dist:win": "node scripts/license-notices.cjs && electron-builder --win nsis --publish never",
     "licenses": "node scripts/license-notices.cjs",

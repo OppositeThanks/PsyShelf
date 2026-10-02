@@ -1,10 +1,6 @@
-const demoSeed = [
-  { id: '1', title: 'El hombre en busca de sentido', authors: ['Viktor Frankl'], categories: ['Book'], languages: ['Spanish'], description: 'Resiliencia, logoterapia y búsqueda de sentido vital.', sourceKind: 'google-sheet', status: 'ready', updatedAt: new Date().toISOString() },
-  { id: '2', title: 'Pensar rápido, pensar despacio', authors: ['Daniel Kahneman'], categories: ['Book'], languages: ['Spanish'], description: 'Psicología cognitiva y toma de decisiones.', sourceKind: 'google-sheet', status: 'ready', updatedAt: new Date().toISOString() },
-  { id: '3', title: 'Del revés (Inside Out)', authors: ['Pixar'], categories: ['Movie'], languages: ['Spanish', 'English'], description: 'Inteligencia emocional y gestión de las emociones.', sourceKind: 'google-sheet', status: 'ready', updatedAt: new Date().toISOString() },
-  { id: '4', title: 'Weightless', authors: ['Marconi Union'], categories: ['Music'], languages: ['No spoken language'], description: 'Music associated with relaxation and anxiety reduction.', sourceKind: 'google-sheet', status: 'ready', updatedAt: new Date().toISOString() },
-  { id: '5', title: 'The Help', authors: [], categories: ['Movie', 'Draft'], languages: ['English'], description: 'Imported as a draft because the original spreadsheet row was incomplete.', sourceKind: 'google-sheet', status: 'draft', updatedAt: new Date().toISOString() }
-];
+// Browser-only visual previews have no managed files; desktop first-run demos
+// are supplied by the main process, never a fallback catalog.
+const demoSeed = [];
 
 function makeDemoApi() {
   let resources = structuredClone(demoSeed);

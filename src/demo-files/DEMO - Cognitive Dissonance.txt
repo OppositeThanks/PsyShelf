@@ -1,0 +1,20 @@
+DEMO - Cognitive Dissonance
+Original educational sample prepared for a PsyShelf user walkthrough.
+2026-10-02 | Language: English | Topic: Social psychology
+
+CONCEPT
+Cognitive dissonance is discomfort associated with inconsistency between beliefs, attitudes or behavior. People may reduce that discomfort by changing behavior, revising a belief, or adding a justification.
+
+EXAMPLE
+A person values environmental protection but repeatedly buys disposable products. They might change their purchasing habits or justify the purchases as unavoidable.
+
+KEY DISTINCTION
+A justification may reduce discomfort without resolving the underlying inconsistency. The concept describes a psychological process rather than proving why any particular person acted.
+
+READING QUESTION
+What is inconsistent, and what strategy is used to reduce the discomfort?
+
+REFERENCE
+OpenStax, Psychology 2e, section 12.3: Attitudes and Persuasion.
+https://openstax.org/books/psychology-2e/pages/12-3-attitudes-and-persuasion
+This is an original short summary, not a downloaded research paper or clinical guidance.

@@ -1,0 +1,20 @@
+DEMO - Cognitive Reappraisal
+Original educational sample prepared for a PsyShelf user walkthrough.
+2026-10-02 | Language: English | Topic: Emotion regulation
+
+CONCEPT
+Cognitive reappraisal involves reconsidering the meaning of an event in a way that can change the emotional response. Appraisal also plays a role in how people experience stress.
+
+EXAMPLE
+Before a presentation, a student interprets a racing heart as preparation for a demanding task rather than certain evidence of failure.
+
+KEY DISTINCTION
+Reappraisal does not require denying facts or pretending a difficult situation is harmless. Its usefulness depends on context; practical action may also be needed.
+
+READING QUESTION
+What interpretation changed, and did the facts of the situation change?
+
+REFERENCE
+OpenStax, Psychology 2e, section 14.4: Regulation of Stress, for appraisal and coping context.
+https://openstax.org/books/psychology-2e/pages/14-4-regulation-of-stress
+This is an original short summary, not a downloaded research paper or clinical guidance.

@@ -188,15 +188,29 @@ function initDatabase(seedIfEmpty = true) {
   if (count === 0 && seedIfEmpty) {
     const insert = db.prepare(`
       INSERT INTO resources
-      (id, title, authors, categories, languages, description, source_kind, status, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, 'google-sheet', ?, ?, ?)
+      (id, title, authors, categories, languages, description, source_kind, file_path, storage_mode, extension, status, created_at, updated_at, details)
+      VALUES (?, ?, ?, ?, ?, ?, 'file', ?, 'copy', '.txt', ?, ?, ?, ?)
     `);
     const createdAt = now();
-    for (const item of seedData) {
-      insert.run(
-        randomId(), item.title, JSON.stringify(item.authors), JSON.stringify(item.categories),
-        JSON.stringify(item.languages), item.description, item.status || 'ready', createdAt, createdAt
-      );
+    const createdFiles = [];
+    db.exec('BEGIN');
+    try {
+      for (const item of seedData) {
+        const id = randomId();
+        const destination = path.join(managedLibraryPath, `${id}-${item.filename}`);
+        fs.copyFileSync(path.join(__dirname, '../src/demo-files', item.filename), destination, fs.constants.COPYFILE_EXCL);
+        createdFiles.push(destination);
+        insert.run(
+          id, item.title, JSON.stringify(item.authors), JSON.stringify(item.categories),
+          JSON.stringify(item.languages), item.description, destination, item.status,
+          createdAt, createdAt, JSON.stringify(normalizeDetails(item))
+        );
+      }
+      db.exec('COMMIT');
+    } catch (error) {
+      db.exec('ROLLBACK');
+      for (const filename of createdFiles) fs.rmSync(filename, { force: true });
+      throw error;
     }
   }
 }

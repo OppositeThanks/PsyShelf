@@ -30,7 +30,12 @@ async function run() {
   const record = fs.readFileSync(path.join(root, 'privacy.json'), 'utf8'); assert.equal(record.includes(password), false);
   await assert.rejects(evaluate(main, folder => window.psyLibrary.restoreBackup(folder, 'incorrect password'), snapshot.folder), /decrypt/);
   const restored = await evaluate(main, folder => window.psyLibrary.restoreBackup(folder), snapshot.folder);
-  assert.equal(restored.resourceCount, 17);
+  assert.equal(restored.resourceCount, 5);
+  for (const item of await evaluate(main, () => window.psyLibrary.listResources({}))) {
+    assert.equal(item.storageMode, 'copy');
+    assert.ok(fs.existsSync(item.filePath));
+    assert.match(fs.readFileSync(item.filePath, 'utf8'), /Original educational sample/);
+  }
   assert.ok(fs.existsSync(path.join(restored.safetyFolder, 'manifest.enc')));
   await evaluate(main, async password => { await window.psyLibrary.configureLock(password, 5); }, password);
   const records = JSON.parse(fs.readFileSync(path.join(root, 'privacy.json'), 'utf8'));
@@ -54,7 +59,7 @@ async function run() {
   // Do not hold an executeJavaScript promise across a navigation.
   await evaluate(main, password => { document.getElementById('unlockPassword').value = password; document.getElementById('unlockForm').requestSubmit(); }, password);
   await page(main, 'index.html');
-  assert.equal((await evaluate(main, () => window.psyLibrary.listResources({}))).length, 18);
+  assert.equal((await evaluate(main, () => window.psyLibrary.listResources({}))).length, 6);
   console.log('PASS: encrypted automatic and safety backups, password restoration, protected key storage, lock-screen closure, locked IPC denial, unlock, and EN/FR/ES lock screens.');
 }
 const timeout = setTimeout(() => { console.error('Privacy smoke timed out'); app.exit(1); }, 60000);

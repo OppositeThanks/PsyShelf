@@ -63,7 +63,18 @@ async function run() {
   await main.webContents.reload(); await ready(main);
   assert.equal(await evaluate(main, () => document.querySelector('.privacy-notice').hidden), true);
   assert.equal(await evaluate(main, async () => (await navigator.permissions.query({ name: 'clipboard-write' })).state), 'granted');
-  assert.equal(await evaluate(main, async () => (await window.psyLibrary.listResources({})).length), 17);
+  const starter = await evaluate(main, () => window.psyLibrary.listResources({}));
+  assert.equal(starter.length, 5);
+  for (const resource of starter) {
+    assert.match(resource.title, /^DEMO - /);
+    assert.equal(resource.sourceKind, 'file');
+    assert.equal(resource.storageMode, 'copy');
+    assert.deepEqual(resource.collections, ['DEMO']);
+    assert.ok(fs.existsSync(resource.filePath));
+    const demoPreview = await preview(main, resource.id);
+    assert.match(await evaluate(demoPreview, () => document.querySelector('#content').textContent), /Original educational sample/);
+    demoPreview.destroy();
+  }
   chosenFiles = files;
   const resources = await evaluate(main, () => window.psyLibrary.addFiles({ storageMode: 'reference' }));
   const text = resources.find(r => r.filePath.endsWith('safe.txt'));
