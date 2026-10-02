@@ -125,9 +125,10 @@
           <div class="message agent">Ask about themes, authors, languages, or which resource might fit a topic.</div>
         </div>
         <form id="chatForm" class="chat-form">
-          <textarea id="chatInput" rows="2" placeholder="What do I have about grief?"></textarea>
+          <textarea id="chatInput" rows="2" placeholder="What do I have about grief?" aria-describedby="chatShortcutHint"></textarea>
           <button class="send-button" type="submit" aria-label="Send">↑</button>
         </form>
+        <p id="chatShortcutHint" class="chat-shortcut-hint">Enter to send · Alt+Enter for a new line</p>
       </div>
     </aside>
   </div>

@@ -40,6 +40,35 @@ async function run() {
   await app.whenReady();
   const main = BrowserWindow.getAllWindows()[0]; assert.ok(main); await ready(main);
   main.hide();
+  const chatKeys = await evaluate(main, () => {
+    const input = document.getElementById('chatInput');
+    const form = document.getElementById('chatForm');
+    let submits = 0;
+    const capture = event => { event.preventDefault(); event.stopImmediatePropagation(); submits++; };
+    form.addEventListener('submit', capture, true);
+    const press = options => input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true, ...options }));
+    input.value = 'FirstSecond'; input.setSelectionRange(5, 5);
+    const altDefault = press({ altKey: true });
+    const multiline = input.value;
+    input.setSelectionRange(0, 5); press({ altKey: true });
+    const replaced = input.value;
+    press({ isComposing: true }); press({ keyCode: 229 }); press({ repeat: true });
+    const beforeEnter = submits;
+    const enterDefault = press({});
+    const hints = ['English', 'French', 'Spanish'].map(language => {
+      window.psyI18n.setLanguage(language);
+      return document.getElementById('chatShortcutHint').textContent;
+    });
+    window.psyI18n.setLanguage('English');
+    form.removeEventListener('submit', capture, true); input.value = '';
+    return { multiline, replaced, beforeEnter, submits, altDefault, enterDefault, hints };
+  });
+  assert.equal(chatKeys.multiline, 'First\nSecond');
+  assert.equal(chatKeys.replaced, '\n\nSecond');
+  assert.equal(chatKeys.beforeEnter, 0);
+  assert.equal(chatKeys.submits, 1);
+  assert.equal(chatKeys.altDefault, false); assert.equal(chatKeys.enterDefault, false);
+  assert.equal(new Set(chatKeys.hints).size, 3);
   assert.equal(await evaluate(main, async () => (await window.psyLibrary.updateStatus()).automatic), false);
   assert.equal(await evaluate(main, () => document.querySelector('.privacy-notice').hidden), false);
   assert.match(await evaluate(main, () => window.psyLibrary.legalNotices()), /pdfjs-dist@/);

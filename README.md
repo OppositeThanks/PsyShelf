@@ -14,6 +14,11 @@ Existing libraries and restored empty libraries are preserved during updates.
 
 ## What works in this MVP
 
+In **Ask library**, press **Enter** to send your message or **Alt+Enter** to
+insert a new line at the cursor. The Send button remains available. The shortcut
+hint supports English, French and Spanish; composing text with an input method
+does not accidentally submit it.
+
 The library opens immediately; a dismissible welcome message offers optional local AI setup. Select a resource to open its details, use the × button to collapse the panel, or choose **Ask library** in the toolbar. Cards distinguish **Local file**, **Web link**, and **Catalog entry only**; attached files and links have an **Open** action. Catalog-only entries offer **View details** and cannot be previewed until a source is attached.
 
 Use the **Cards / List** selector to switch layouts; your choice is remembered on this computer. List view shows complete descriptions and titles. Filter by **Clinical topic**, **Audience**, and **Theoretical approach**, alongside category or language. These filters use the values you have saved in **Edit details & notes**; starter entries without that metadata remain visible under **All**. **Clear filters** preserves the search text; **Library** resets both filters and search.
@@ -293,6 +298,11 @@ No certificate has been purchased or installed. The source includes signing and 
 To activate the prepared electron-builder v26 certificate workflow, configure GitHub Actions secrets **WIN_CSC_LINK** (the signing provider’s supported PFX/base64 material) and **WIN_CSC_KEY_PASSWORD**, plus repository variable **PSYSHELF_PUBLISHER_THUMBPRINTS** (comma-separated uppercase SHA-1 certificate thumbprints, 40 hexadecimal characters each). These identify certificates; signatures use SHA-256. The workflow embeds the public pins, requires signing, and validates the installer before publication. Configure neither for explicitly unsigned builds; a partially configured identity fails the build. Never commit private keys. Hardware/cloud signing services need their provider-specific integration and credentials; no service has been activated. Add replacement certificate pins in a trusted release before rotating certificates. The first signed version requires a manual installation from a trusted source because existing unsigned versions cannot establish that signing identity. See [electron-builder v26 signing documentation](https://www.electron.build/v26/docs/features/code-signing/code-signing-win/).
 
 ## Update history
+
+### 2026-10-02 — chat keyboard shortcuts (source update; installer pending CI)
+
+- Send AI chat messages with Enter; insert new lines with Alt+Enter, including when replacing selected text.
+- Add a translated, accessible shortcut hint and preserve composition input and existing empty-message/busy guards.
 
 ### 2026-10-02 — demo-only starter library (source update; installer pending CI)
 

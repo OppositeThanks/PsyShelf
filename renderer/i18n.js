@@ -391,6 +391,7 @@
     ['Confirm deletion', 'Confirmer la suppression', 'Confirmar eliminación'],
     ['Close', 'Fermer', 'Cerrar'],
     ['Send', 'Envoyer', 'Enviar'],
+    ['Enter to send · Alt+Enter for a new line', 'Entrée pour envoyer · Alt+Entrée pour une nouvelle ligne', 'Enter para enviar · Alt+Enter para una nueva línea'],
     ['Close setup', 'Fermer la configuration', 'Cerrar configuración'],
     ['How should PsyShelf store these files?', 'Comment conserver ces fichiers ?', '¿Cómo debe guardar PsyShelf estos archivos?'],
     ['You can decide each time you import. Both options keep the entry in your database.', 'Vous choisissez à chaque importation. Les deux options conservent l’entrée dans votre base.', 'Puedes elegir en cada importación. Ambas opciones guardan la entrada en tu base de datos.'],

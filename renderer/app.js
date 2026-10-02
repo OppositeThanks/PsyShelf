@@ -660,6 +660,21 @@ function appendSourceAnswer(answer, messages) {
   messages.append(bubble);
 }
 
+$('#chatInput').addEventListener('keydown', event => {
+  if (event.key !== 'Enter' || event.isComposing || event.keyCode === 229) return;
+  if (event.ctrlKey || event.metaKey) return;
+  if (event.altKey) {
+    event.preventDefault();
+    const input = event.currentTarget;
+    input.setRangeText('\n', input.selectionStart, input.selectionEnd, 'end');
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    return;
+  }
+  if (event.shiftKey) return;
+  event.preventDefault();
+  if (!event.repeat) $('#chatForm').requestSubmit();
+});
+
 $('#chatForm').addEventListener('submit', async event => {
   event.preventDefault();
   const input = $('#chatInput');
