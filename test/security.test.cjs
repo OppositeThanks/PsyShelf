@@ -66,6 +66,31 @@ test('renamed executables are blocked and unfamiliar documents require cancellab
   assert.equal(opens, 1);
 });
 
+test('external opening uses the native redirected path and validates its target', async t => {
+  const root = fixture(t);
+  const logical = path.join(root, 'logical document.txt');
+  const physical = path.join(root, 'réel document.txt');
+  fs.writeFileSync(logical, 'logical view');
+  fs.writeFileSync(physical, 'physical document');
+  const native = fs.realpathSync.native;
+  t.after(() => { fs.realpathSync.native = native; });
+  fs.realpathSync.native = filename => filename === logical ? physical : native(filename);
+  let opened;
+  assert.equal((await openCheckedFile(logical, {
+    confirm: async () => { throw Error('Unexpected confirmation'); },
+    open: async filename => { opened = filename; return ''; }
+  })).opened, true);
+  assert.equal(opened, physical);
+  // A redirected executable must still be rejected before reaching Windows.
+  const executable = path.join(root, 'redirected.exe');
+  fs.writeFileSync(executable, 'MZ unsafe');
+  fs.realpathSync.native = filename => filename === logical ? executable : native(filename);
+  await assert.rejects(openCheckedFile(logical, {
+    confirm: async () => true, open: async () => { throw Error('Unsafe opener called'); }
+  }), /blocked/);
+  fs.realpathSync.native = native;
+});
+
 test('privileged IPC accepts only the correct window, exact app page and top-level frame', () => {
   const main = { id: 1, isDestroyed: () => false, mainFrame: { url: mainUrl } };
   const preview = { id: 2, isDestroyed: () => false, mainFrame: { url: previewUrl } };

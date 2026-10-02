@@ -169,6 +169,12 @@ Current limits: lexical matching (not semantic or cross-language search), up to 
 
 ## File previews and helper recommendations
 
+Opening attachments with Windows uses their native resolved filesystem paths,
+including Windows package redirection of app-data folders. This lets external
+viewers find managed copies when PsyShelf is launched from a packaged host such
+as Codex. Both card **Open** and preview **Open with Windows** retain executable,
+path and file-signature guards.
+
 Every format is accepted and stored, but executable files, scripts, and shortcuts cannot be launched from PsyShelf. Built-in preview support is intentionally limited to formats Chromium can render safely and consistently. For other document formats, the Preview Helper offers Windows opening (with a warning for unfamiliar or potentially active formats) plus verified official links to free tools:
 
 - Office and OpenDocument files: [LibreOffice](https://www.libreoffice.org/download/download-libreoffice/)
@@ -275,6 +281,12 @@ No certificate has been purchased or installed. The source includes signing and 
 To activate the prepared electron-builder v26 certificate workflow, configure GitHub Actions secrets **WIN_CSC_LINK** (the signing provider’s supported PFX/base64 material) and **WIN_CSC_KEY_PASSWORD**, plus repository variable **PSYSHELF_PUBLISHER_THUMBPRINTS** (comma-separated uppercase SHA-1 certificate thumbprints, 40 hexadecimal characters each). These identify certificates; signatures use SHA-256. The workflow embeds the public pins, requires signing, and validates the installer before publication. Configure neither for explicitly unsigned builds; a partially configured identity fails the build. Never commit private keys. Hardware/cloud signing services need their provider-specific integration and credentials; no service has been activated. Add replacement certificate pins in a trusted release before rotating certificates. The first signed version requires a manual installation from a trusted source because existing unsigned versions cannot establish that signing identity. See [electron-builder v26 signing documentation](https://www.electron.build/v26/docs/features/code-signing/code-signing-win/).
 
 ## Update history
+
+### 2026-10-02 — external viewer path fix (source update; installer pending CI)
+
+- Resolve the actual Windows filesystem path before opening attachments externally, fixing missing-path errors for managed files stored through package app-data redirection.
+- Add a redirected-path regression check that also verifies executable targets remain blocked.
+- Validate 66 unit tests and Electron security checks; manually retest card Open with Working Memory and preview Open with Windows with Attachment, both successfully displayed in Notepad.
 
 ### 2026-10-01 — dependency security updates
 

@@ -19,7 +19,9 @@ function checkPath(filename) {
 function inspectOpenFile(filename) {
   checkPath(filename);
   if (!fs.existsSync(filename)) throw new Error('File not found.');
-  const resolved = fs.realpathSync(filename);
+  // Native resolution includes Windows package/app-data redirection. External
+  // viewers do not necessarily share our process's virtualized filesystem.
+  const resolved = fs.realpathSync.native(filename);
   checkPath(resolved);
   const handle = fs.openSync(resolved, 'r');
   try {
