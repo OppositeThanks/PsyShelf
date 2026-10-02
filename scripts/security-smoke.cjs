@@ -40,6 +40,28 @@ async function run() {
   await app.whenReady();
   const main = BrowserWindow.getAllWindows()[0]; assert.ok(main); await ready(main);
   main.hide();
+  assert.equal(await evaluate(main, async () => (await window.psyLibrary.updateStatus()).automatic), false);
+  assert.equal(await evaluate(main, () => document.querySelector('.privacy-notice').hidden), false);
+  assert.match(await evaluate(main, () => window.psyLibrary.legalNotices()), /pdfjs-dist@/);
+  for (const language of ['English', 'French', 'Spanish']) {
+    await evaluate(main, language => window.psyI18n.setLanguage(language), language);
+    await evaluate(main, () => new Promise(resolve => setTimeout(resolve, 20)));
+    const content = await evaluate(main, () => {
+      const section = document.querySelector('#privacySection > section');
+      section.querySelector('button').click();
+      const result = document.querySelector('dialog[open]').textContent;
+      document.querySelector('dialog[open]').close(); return result;
+    });
+    assert.match(content, /OppositeThanks/);
+    assert.match(content, {English:/France and Spain/,French:/France et Espagne/,Spanish:/Francia y España/}[language]);
+  }
+  await evaluate(main, () => {
+    window.psyI18n.setLanguage('English');
+    document.querySelector('.privacy-notice button:last-child').click();
+  });
+  assert.equal(await evaluate(main, () => localStorage.getItem('psyshelf-privacy-notice-v1')), 'necessary-only');
+  await main.webContents.reload(); await ready(main);
+  assert.equal(await evaluate(main, () => document.querySelector('.privacy-notice').hidden), true);
   assert.equal(await evaluate(main, async () => (await navigator.permissions.query({ name: 'clipboard-write' })).state), 'granted');
   assert.equal(await evaluate(main, async () => (await window.psyLibrary.listResources({})).length), 17);
   chosenFiles = files;

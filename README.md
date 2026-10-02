@@ -207,6 +207,23 @@ Referenced originals are not copied into backups. This MVP provides a safe one-w
 
 ## Data and privacy
 
+**Settings → Privacy & security** now includes draft Privacy policy, Terms of service,
+Cookie policy, Data deletion request, Privacy choices and Third-party licenses in
+English, French and Spanish. A dismissible, reopenable necessary-storage banner
+explains that no optional tracking/cookies are included. Dismissal is neither
+tracking consent nor terms acceptance. Automatic GitHub update checks default off
+for new installations; existing explicit preferences remain effective.
+
+Operator: OppositeThanks; intended markets: France and Spain. **Before public
+distribution: add a verified public privacy contact and business address, verify
+the legal identity, and obtain review of the draft terms.** Contact details are
+intentionally omitted for now. The deletion request screen explains local deletion
+and does not claim to submit a request. See [deployment audit](docs/DEPLOYMENT-PRIVACY-AUDIT.md)
+for data flows, form review, remaining license/asset checks and release reminders.
+`pnpm licenses` regenerates the installed dependency notices; Windows packaging
+regenerates and includes them automatically. This inventory does not establish
+license clearance for native binaries, OCR models, the icon or starter catalog.
+
 - This project is designed for professional reading material, not patient records.
 - The live database and managed files stay in the local Electron application-data folder.
 - Deleting an entry preserves its original or managed file.
@@ -265,6 +282,11 @@ To activate the prepared electron-builder v26 certificate workflow, configure Gi
 - Add a complete dependency audit that blocks vulnerable releases, daily/PR/push security checks, and weekly Dependabot update pull requests.
 - Wait for actual PDF rendering in the Electron security check instead of relying on a fixed startup delay.
 - These changes reach the downloadable installer after successful Windows CI.
+### 2026-10-02 — deployment privacy review (source update; installer pending CI)
+
+- Add translated draft policies, necessary-storage notice, deletion instructions and readable packaged dependency notices.
+- Default new-install automatic update checks off; document local/third-party data flows and existing form/share controls.
+- Record France/Spain deployment blockers: publisher contact/address, legal review, app license and asset/binary rights verification.
 
 ### 2026-10-01 — sidebar filter styling (source update; installer pending CI)
 

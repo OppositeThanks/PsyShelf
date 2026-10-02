@@ -1,6 +1,7 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('psyLibrary', {
+  legalNotices: () => ipcRenderer.invoke('legal:notices'),
   securityStatus: () => ipcRenderer.invoke('security:status'),
   configureLock: (password, minutes) => ipcRenderer.invoke('security:configure-lock', password, minutes),
   disableLock: password => ipcRenderer.invoke('security:disable-lock', password),

@@ -131,7 +131,7 @@ function readSettings() {
     model: 'qwen3:4b',
     backupFolder: '',
     language: 'English',
-    checkUpdates: true
+    checkUpdates: false
   };
   try {
     return { ...defaults, ...JSON.parse(fs.readFileSync(settingsPath, 'utf8')) };
@@ -485,6 +485,7 @@ function registerHandlers() {
     if (mutates) activeOperations++;
     try { const result = await callback(event, ...args); if (!channel.startsWith('security:') && generation !== privacy.generation) throw new Error('Unlock PsyShelf to continue.'); return result; } finally { if (mutates) activeOperations--; }
   });
+  handle('legal:notices', () => fs.readFileSync(path.join(__dirname, '../renderer/third-party-notices.txt'), 'utf8'));
   privacy.bind({ handle, mainWindow: () => mainWindow,
     isBusy: () => activeOperations > 0 || fileJobs.busy || chatBusy || restoreDialogOpen || Boolean(documentSearch.job),
     pause: async () => { restoreLocked = true; clearTimeout(backupTimer); if (db) { db.close(); db = null; } },
@@ -500,7 +501,7 @@ function registerHandlers() {
     return documentSearch.run(resources, query, { ocr: options.ocr, language: options.language, cacheDir: path.join(app.getPath('userData'), 'document-index') });
   });
   handle('documents:cancel', async () => { await documentSearch.cancel(); return { cancelled: true }; });
-  handle('updates:status', () => ({ ...updates.snapshot(), automatic: settings.checkUpdates !== false }));
+  handle('updates:status', () => ({ ...updates.snapshot(), automatic: settings.checkUpdates === true }));
   handle('updates:check', () => updates.check());
   handle('updates:download', () => updates.download());
   handle('updates:cancel', () => { updates.cancel(); return { cancelled: true }; });
@@ -875,11 +876,11 @@ app.whenReady().then(async () => {
   const existingLibrary = fs.existsSync(path.join(app.getPath('userData'), 'psyshelf.sqlite'));
   initDatabase(!existingLibrary);
   updates = new AppUpdates({ currentVersion: app.getVersion(), downloads: app.getPath('downloads'), notify: status => {
-    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('updates:status', { ...status, automatic: settings.checkUpdates !== false });
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('updates:status', { ...status, automatic: settings.checkUpdates === true });
   } });
   registerHandlers();
   createWindow();
-  const checkUpdates = () => { if (!quitting && settings.checkUpdates !== false && app.isPackaged && !process.env.PSYSHELF_TEST_DATA_DIR) void updates.check(); };
+  const checkUpdates = () => { if (!quitting && settings.checkUpdates === true && app.isPackaged && !process.env.PSYSHELF_TEST_DATA_DIR) void updates.check(); };
   initialUpdateTimer = setTimeout(checkUpdates, 2500);
   updateTimer = setInterval(checkUpdates, 6 * 60 * 60 * 1000);
   updateTimer.unref();
