@@ -50,11 +50,11 @@
     }
   },
   "dependencies": {
-    "@napi-rs/canvas": "1.0.9",
+    "@napi-rs/canvas": "1.0.10",
     "@tesseract.js-data/eng": "1.0.0",
     "@tesseract.js-data/fra": "1.0.0",
     "@tesseract.js-data/spa": "1.0.0",
-    "pdfjs-dist": "6.3.289",
+    "pdfjs-dist": "6.4.299",
     "tesseract.js": "7.0.0"
   },
   "pnpm": {
