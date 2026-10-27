@@ -269,7 +269,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for data boundaries and the mob
 
 Run `pnpm run audit:security` to check the complete dependency tree, including Electron and installer tooling listed under development dependencies. Any reported vulnerability (low severity or higher), or an audit service failure, fails the check. Windows releases must pass this audit, unit tests, and Electron security tests before publication.
 
-Security overrides in `pnpm-workspace.yaml` pin `http-cache-semantics` to patched version 4.3.0 and the Electron downloader's proxy dependency to `global-agent` 4.1.3, which removes the vulnerable `roarr` / `sprintf-js` dependency chain. Keep these overrides until upstream dependencies include equivalent fixes; the audit continues to check all dependencies without advisory exclusions.
+Electron is pinned to 43.8.3, including the compromised-certificate mitigation. Security overrides in `pnpm-workspace.yaml` pin `http-cache-semantics` to patched version 4.3.0 and the Electron downloader's proxy dependency to `global-agent` 4.1.3, which removes the vulnerable `roarr` / `sprintf-js` dependency chain. Major-specific overrides keep Undici 6.x at 6.29.1, Undici 7.x at 7.30.1, and fast-uri 3.x at 3.1.9 to address networking and URL parsing advisories without forcing major upgrades. Keep these overrides until upstream dependencies include equivalent fixes; the audit continues to check all dependencies without advisory exclusions.
 
 The **Dependency security audit** GitHub workflow runs daily at 07:23 UTC, on main pushes and pull requests, and on manual request. It installs the frozen lockfile without executing dependency scripts. Dependabot checks npm packages (including development dependencies) and GitHub Actions weekly and opens update pull requests; updates are not automatically merged. Failed workflows appear in GitHub Actions; email notifications follow your GitHub notification settings. Audits cover known registry advisories and do not guarantee the absence of vulnerabilities.
 
@@ -300,6 +300,12 @@ No certificate has been purchased or installed. The source includes signing and 
 To activate the prepared electron-builder v26 certificate workflow, configure GitHub Actions secrets **WIN_CSC_LINK** (the signing provider’s supported PFX/base64 material) and **WIN_CSC_KEY_PASSWORD**, plus repository variable **PSYSHELF_PUBLISHER_THUMBPRINTS** (comma-separated uppercase SHA-1 certificate thumbprints, 40 hexadecimal characters each). These identify certificates; signatures use SHA-256. The workflow embeds the public pins, requires signing, and validates the installer before publication. Configure neither for explicitly unsigned builds; a partially configured identity fails the build. Never commit private keys. Hardware/cloud signing services need their provider-specific integration and credentials; no service has been activated. Add replacement certificate pins in a trusted release before rotating certificates. The first signed version requires a manual installation from a trusted source because existing unsigned versions cannot establish that signing identity. See [electron-builder v26 signing documentation](https://www.electron.build/v26/docs/features/code-signing/code-signing-win/).
 
 ## Update history
+
+### 2026-10-27 — ten dependency audit findings (source update; installer pending CI)
+
+- Upgrade Electron to 43.8.3 and pin patched Undici 6.x/7.x and fast-uri 3.x dependencies to address the ten findings in security audit run #48.
+- Refresh the lockfile and packaged license notices; preserve the complete release-blocking security audit without suppressing advisories.
+- Validate zero known audit vulnerabilities, a frozen install with CI's pnpm 10.15.1, all 66 unit tests, and Electron security, starter-library, and privacy checks.
 
 ### 2026-10-08 — dependency audit fixes (source update; installer pending CI)
 

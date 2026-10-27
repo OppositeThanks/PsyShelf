@@ -1,6 +1,9 @@
 overrides:
   http-cache-semantics: 4.3.0
   '@electron/get>global-agent': 4.1.3
+  'undici@^6': 6.29.1
+  'undici@^7': 7.30.1
+  'fast-uri@^3': 3.1.9
 
 allowBuilds:
   electron-winstaller: false
